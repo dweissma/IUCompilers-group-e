@@ -60,35 +60,18 @@
 (test-pe (parse-program `(program () (+ 1 (+ 3 1)))))
 (test-pe (parse-program `(program () (- (+ 3 (- 5))))))
 
-;;;;;;
-;Helpers
-;;;;;
-
-(define (match-alist var alist)
-  (if (eq? var (car (car alist))) (cdr (car alist)) (match-alist var (cdr alist))))
-
-;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
-(define (split-pairs plist)
-  (cond [(empty? plist) '(() . ())]
-        [else (let [(rest-plist (split-pairs (cdr plist)))] `(,(cons (car (car plist)) (car rest-plist)) . ,(append (cdr (car plist)) (cdr rest-plist))))]))
-
-         
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; HW1 Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
 
 (define (uniquify-exp symtab)
   (lambda (e)
     (match e
       [(Var x)
-       (Var (match-alist x symtab))]
+       (error "TODO: code goes here (uniquify-exp, symbol?)")]
       [(Int n) (Int n)]
       [(Let x e body)
-      (let ([y (gensym x)])
-        (Let y ((uniquify-exp symtab) e) ((uniquify-exp (cons `(,x . ,y) symtab)) body)))]
+       (error "TODO: code goes here (uniquify-exp, let)")]
       [(Prim op es)
        (Prim op (for/list ([e es]) ((uniquify-exp symtab) e)))]
       )))
@@ -100,41 +83,9 @@
      (Program info ((uniquify-exp '()) e))]
     ))
 
-;Expands an alist into let expression binding each variable to its associated expression
-(define (expand-alist alist base)
-  (cond [(empty? alist) base]
-        [else (Let (car (car alist)) (cdr (car alist)) (expand-alist (cdr alist) base))]))
-
-  
-(define (rco-atom e)
-  (match e
-      [(Var x) (values (Var x) '())]
-      [(Int n) (values (Int n) '())]
-      [(Let x e body)
-       (values (Let x (rco-exp e) (rco-exp body)) '())]
-      [(Prim op es)
-       (let [(tmp (gensym "tmp"))]
-        (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
-      ))
-
-(define (rco-exp e)
-  (match e
-      [(Var x) (Var x)]
-      [(Int n) (Int n)]
-      [(Let x e body)
-       (Let x (rco-exp e) (rco-exp body))]
-      [(Prim op es)
-       (let [(exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))] (expand-alist (cdr exps) (Prim op (car exps))))]
-      ))
-
 ;; remove-complex-opera* : R1 -> R1
 (define (remove-complex-opera* p)
-  (match p
-    [(Program info e)
-     (Program info (rco-exp e))]
-    ))
-
-
+  (error "TODO: code goes here (remove-complex-opera*)"))
 
 ;; explicate-control : R1 -> C0
 (define (explicate-control p)
