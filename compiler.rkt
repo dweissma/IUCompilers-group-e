@@ -135,10 +135,34 @@
     ))
 
 
+;;Assigns a variable to whatever an expression would return then adds the tail on
+(define (do-assignment exp var tail)
+  (match exp
+    [(Return (Int n)) (Seq (Assign var (Int n)) tail)]
+    [(Return (Var x)) (Seq (Assign var (Var x)) tail)]
+    [(Return (Prim op es)) (Seq (Assign var (Prim op es)) tail)]
+    [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]))
+
+(define (explicate-assign exp var tail)
+  (begin (define-values (exp-tail exp-vars) (explicate-tail exp)) (define-values (tail-tail tail-vars) (explicate-tail tail))
+         (values (do-assignment exp-tail var tail-tail) (append exp-vars tail-vars))))
+
+(define (explicate-tail e)
+  (match e
+    [(Var x) (values (Return (Var x)) '())]
+      [(Int n) (values (Return (Int n)) '())]
+      [(Let x e body)
+       (begin (define-values (tail vars) (explicate-assign e (Var x) body)) (values tail (cons (Var x) vars)))]
+      [(Prim op es)
+       (values (Return (Prim op es)) '())]
+      ))
 
 ;; explicate-control : R1 -> C0
 (define (explicate-control p)
-  (error "TODO: code goes here (explicate-control)"))
+  (match p
+    [(Program info e)
+     (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) tail))]
+    ))
 
 ;; select-instructions : C0 -> pseudo-x86
 (define (select-instructions p)
