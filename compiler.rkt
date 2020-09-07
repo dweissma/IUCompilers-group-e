@@ -161,7 +161,7 @@
 (define (explicate-control p)
   (match p
     [(Program info e)
-     (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) tail))]
+     (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) (CFG `((start . ,tail)))))]
     ))
 
 ;; select-instructions : C0 -> pseudo-x86
