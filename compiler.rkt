@@ -1,6 +1,7 @@
 #lang racket
 (require racket/set racket/stream)
 (require racket/fixnum)
+(require racket/trace)
 (require "interp-R0.rkt")
 (require "interp-R1.rkt")
 (require "interp.rkt")
@@ -64,15 +65,22 @@
 ;Helpers
 ;;;;;
 
-(define (match-alist var alist)
-  (if (eq? var (car (car alist))) (cdr (car alist)) (match-alist var (cdr alist))))
+(trace-define (match-alist var alist)
+  [cond [(empty? alist) #f]
+        [(eq? var (car (car alist)))(cdr (car alist))]
+        [else (match-alist var (cdr alist))]])
 
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
   (cond [(empty? plist) '(() . ())]
         [else (let [(rest-plist (split-pairs (cdr plist)))] `(,(cons (car (car plist)) (car rest-plist)) . ,(append (cdr (car plist)) (cdr rest-plist))))]))
 
-         
+
+(define (last-value ls)
+  (cond [(empty? ls) #f]
+        [(empty? (cdr ls)) (car ls)]
+        [else (last-value (cdr ls))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; HW1 Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,7 +124,6 @@
        (let [(tmp (gensym "tmp"))]
         (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
       ))
-
 
 (define (rco-exp e)
   (match e
@@ -169,7 +176,7 @@
     (match e
      [(Var x) (Var x)]
      [(Int x) (Imm x)]))
-
+        
 (define (slct-stmt tail)
   (match tail
     [(Assign (Var x) exp)
@@ -205,9 +212,28 @@
     [(Program info (CFG B-list))
      (Program info (CFG (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))]))                        
 
+(define (generate-assignments locals start)
+  (cond [(empty? locals) '()]
+        [else (match (car locals)
+                [(Var v) (cons `(,v . ,start) (generate-assignments (cdr locals) (+ start (- 8))))])]))
+
+(define (assign-instr inst homes)
+  (match inst
+    [(Var v) (Deref 'rbp (match-alist v homes))]
+    [(Instr inst args) (Instr inst (map (lambda (i) (assign-instr i homes)) args))]
+    [x x]))
+
+(define (assign-block instrs homes)
+  (map (lambda (i) (assign-instr i homes)) instrs))
+
+
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
-  (error "TODO: code goes here (assign-homes)"))
+  (match p
+    [(Program info (CFG B-list))
+     (let [(homes (generate-assignments (match-alist 'locals info) -8))]
+     (Program `((stack-size . ,(- (cdr (last-value homes))))) (CFG (map (lambda (x) (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
 ;; patch-instructions : psuedo-x86 -> x86
 (define (patch-instructions p)
