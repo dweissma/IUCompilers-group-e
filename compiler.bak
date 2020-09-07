@@ -117,7 +117,6 @@
         (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
       ))
 
-
 (define (rco-exp e)
   (match e
       [(Var x) (Var x)]
@@ -165,45 +164,9 @@
      (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) (CFG `((start . ,tail)))))]
     ))
 
-(define (slct-atom e)
-    (match e
-     [(Var x) (Var x)]
-     [(Int x) (Imm x)]))
-
-(define (slct-stmt tail)
-  (match tail
-    [(Assign (Var x) exp)
-     (match exp
-       [(Int n) (list (Instr 'movq (list (Imm n) (Var x))))]
-       [(Var y) (list (Instr 'movq (list (Var y) (Var x))))]
-       [(Prim 'read es) (list (Callq 'read_int) (Instr 'movq (list (Reg 'rax) (Var x))))]
-       [(Prim '- (list y)) #:when (eq? (Var x) y) (list (Instr 'negq (list (Var x))))]
-       [(Prim '- (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
-       [(Prim '+ (list y v)) #:when (eq? (Var x) y) (list (Instr 'addq (list (slct-atom v) (Var x))))]
-       [(Prim '+ (list y v)) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
-       [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))])]))
-
-(define (slct-tail e)
-  (match e
-    [(Seq s t) (append (slct-stmt s) (slct-tail t))]
-    [(Return r)
-     (match r
-       [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp 'conclusion))]
-       [(Var y) (list (Instr 'movq (list (Var y) (Reg 'rax))) (Jmp 'conclusion))]
-       [(Prim 'read es) (list (Callq 'read_int))  (Jmp 'conclusion)]
-       [(Prim '- (list y)) (list
-                            (Instr 'movq (list (slct-atom y) (Reg 'rax)))
-                            (Instr 'negq (list (Reg 'rax)))
-                            (Jmp 'conclusion))]
-       [(Prim '+ (list y v)) (list
-                              (Instr 'movq (list (slct-atom y) (Reg 'rax)))
-                              (Instr 'addq (list (slct-atom v) (Reg 'rax)))
-                              (Jmp 'conclusion))])]))
-
+;; select-instructions : C0 -> pseudo-x86
 (define (select-instructions p)
-  (match p
-    [(Program info (CFG B-list))
-     (Program info (CFG (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))]))                        
+  (error "TODO: code goes here (select-instructions)"))
 
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
