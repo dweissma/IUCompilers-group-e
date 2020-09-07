@@ -1,7 +1,6 @@
 #lang racket
 (require racket/set racket/stream)
 (require racket/fixnum)
-(require racket/trace)
 (require "interp-R0.rkt")
 (require "interp-R1.rkt")
 (require "interp.rkt")
@@ -65,7 +64,7 @@
 ;Helpers
 ;;;;;
 
-(trace-define (match-alist var alist)
+(define (match-alist var alist)
   [cond [(empty? alist) #f]
         [(eq? var (car (car alist)))(cdr (car alist))]
         [else (match-alist var (cdr alist))]])
@@ -235,10 +234,51 @@
      (Program `((stack-size . ,(- (cdr (last-value homes))))) (CFG (map (lambda (x) (match x
      [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
-;; patch-instructions : psuedo-x86 -> x86
+(define (do-patch  instruction)
+  (match instruction
+    [(Instr e (list (Deref  reg off) (Deref reg2 off2)))
+         (list (Instr 'movq (list (Deref reg off) (Reg 'rax)))
+               (Instr e (list (Reg 'rax) (Deref reg2 off2))))]
+    [else (list instruction)]))
+
+(define (patch e)
+  (match e
+    [(Block '() exp) (Block '() (append-map do-patch exp))]
+    ))
+
 (define (patch-instructions p)
-  (error "TODO: code goes here (patch-instructions)"))
+   (match p
+    [(Program info (CFG B-list))
+     (Program info
+              (CFG
+               (map
+                (lambda (x) `(,(car x) . ,(patch (cdr x)))) B-list)))]))
+       
+
+;; generates an x86 representation of the main clause
+(define (make-main stack-size)
+  (Block '() (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))) (Instr 'subq (list (Imm stack-size) (Reg 'rsp))) (Jmp 'start))))
+
+;; generates an x86 representation of the conclusion
+
+(define (make-conclusion stack-size)
+  (Block '() (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Instr 'retq '()))))
+  ;(Block '() (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Retq))))
+
+;;Turns a block and its label into a string
+(define (stringify-block label block)
+  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~nmain") label) (match block
+                              ([Block info instrs] (foldr (lambda (x rs) (string-append (format "~a" x) rs)) "" instrs)))))
+
+;;Converts an alist of labeled x86 blocks to their string representation
+(define (x86-to-string blocks)
+  (foldr (lambda (x rs) (string-append (stringify-block (car x) (cdr x)) rs)) "" blocks))
 
 ;; print-x86 : x86 -> string
 (define (print-x86 p)
-  (error "TODO: code goes here (print-x86)"))
+  (match p
+    [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
+                                   (let [(main (make-main stack-size))]
+                                     (let [(conclusion (make-conclusion stack-size))]
+                                       (display (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion)))))
+                                       )))]))
