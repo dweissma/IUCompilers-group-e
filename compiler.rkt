@@ -118,7 +118,8 @@
       [(Var x) (values (Var x) '())]
       [(Int n) (values (Int n) '())]
       [(Let x e body)
-       (values (Let x (rco-exp e) (rco-exp body)) '())]
+       (let [(tmp (gensym "tmp"))]
+         (values (Var tmp) `((,tmp . ,(Let x (rco-exp e) (rco-exp body))))))]
       [(Prim op es)
        (let [(tmp (gensym "tmp"))]
         (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
@@ -231,7 +232,7 @@
   (match p
     [(Program info (CFG B-list))
      (let [(homes (generate-assignments (match-alist 'locals info) -8))]
-     (Program `((stack-size . ,(- (cdr (last-value homes))))) (CFG (map (lambda (x) (match x
+     (Program `((stack-size . ,(- (let [(size (last-value homes))] (if (false? size) 0 (cdr size)))))) (CFG (map (lambda (x) (match x
      [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
 (define (do-patch  instruction)
