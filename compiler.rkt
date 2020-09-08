@@ -258,13 +258,12 @@
 
 ;; generates an x86 representation of the main clause
 (define (make-main stack-size)
-  (Block '() (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))) (Instr 'subq (list (Imm stack-size) (Reg 'rsp))) (Jmp 'start))))
+  (Block '() (if (zero? stack-size) (list (Jmp 'start)) (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))) (Instr 'subq (list (Imm stack-size) (Reg 'rsp))) (Jmp 'start)))))
 
 ;; generates an x86 representation of the conclusion
 
 (define (make-conclusion stack-size)
-  (Block '() (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Instr 'retq '()))))
-  ;(Block '() (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Retq))))
+  (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Instr 'retq '())))))
 
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
@@ -281,5 +280,5 @@
     [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
                                    (let [(main (make-main stack-size))]
                                      (let [(conclusion (make-conclusion stack-size))]
-                                       (display (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion)))))
+                                       (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                        )))]))
