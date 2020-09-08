@@ -197,7 +197,7 @@
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp 'conclusion))]
        [(Var y) (list (Instr 'movq (list (Var y) (Reg 'rax))) (Jmp 'conclusion))]
-       [(Prim 'read es) (list (Callq 'read_int))  (Jmp 'conclusion)]
+       [(Prim 'read es) (list (Callq 'read_int)  (Jmp 'conclusion))]
        [(Prim '- (list y)) (list
                             (Instr 'movq (list (slct-atom y) (Reg 'rax)))
                             (Instr 'negq (list (Reg 'rax)))

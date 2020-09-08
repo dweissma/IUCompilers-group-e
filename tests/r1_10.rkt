@@ -1,1 +1,4 @@
-(let ([x 10]) (let ([y 20]) (+ x (+ y 12))))
+(let ([x (read)])
+  (let ([y (read)])
+    (+ x (- y))))
+
