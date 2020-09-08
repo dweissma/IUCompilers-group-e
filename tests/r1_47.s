@@ -1,11 +1,10 @@
 start:
 callq read_int
-movq %rax, -16(%rbp)
-movq -16(%rbp), %rax
 movq %rax, -8(%rbp)
-addq $10, -8(%rbp)
+movq $10, -16(%rbp)
+negq -16(%rbp)
 movq -8(%rbp), %rax
-negq %rax
+addq -16(%rbp), %rax
 jmp conclusion
 .globl main
 main:
