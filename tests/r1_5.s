@@ -1,14 +1,15 @@
 start:
-movq $42, %rax
+movq $10, -8(%rbp)
+movq -8(%rbp), %rax
 jmp conclusion
 .globl main
 main:
 pushq %rbp
 movq %rsp, %rbp
-subq $8, %rsp
+subq $16, %rsp
 jmp start
 conclusion:
-addq $8, %rsp
+addq $16, %rsp
 popq %rbp
 retq
 

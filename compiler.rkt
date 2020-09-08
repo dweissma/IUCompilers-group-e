@@ -263,7 +263,7 @@
 ;; generates an x86 representation of the conclusion
 
 (define (make-conclusion stack-size)
-  (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rsp))) (Instr 'retq '())))))
+  (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm stack-size) (Reg 'rsp))) (Instr 'popq (list (Reg 'rbp))) (Instr 'retq '())))))
 
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
@@ -277,7 +277,7 @@
 ;; print-x86 : x86 -> string
 (define (print-x86 p)
   (match p
-    [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
+    [(Program info (CFG B-list)) (let [(stack-size (+ 8 (match-alist 'stack-size info)))]
                                    (let [(main (make-main stack-size))]
                                      (let [(conclusion (make-conclusion stack-size))]
                                        (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))

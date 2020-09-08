@@ -883,7 +883,6 @@ Changelog:
     [(Jmp t) #t]
     [(TailJmp t) #t]
     [(JmpIf c t) #t]
-    [(Retq) #t]
     [else #f]
     ))
 
