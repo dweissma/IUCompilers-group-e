@@ -212,6 +212,38 @@
     [(Program info (CFG B-list))
      (Program info (CFG (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))]))                        
 
+(define (written-to instr)
+  (match instr
+    [(Instr 'negq (list (Var x))) (set x)]
+    [(Instr i `(,arg ,(Var x))) (set x)]
+    [x (set)]))
+
+(define (read-from instr)
+  (match instr
+    [(Instr 'negq (list (Var x))) (set x)]
+    [(Instr 'addq `(,(Var x) ,(Var y))) (set x y)]
+    [(Instr 'addq `(,arg ,(Var x))) (set x)]
+    [(Instr i `(,(Var x) ,arg)) (set x)]
+    [x (set)]))
+
+(define (compute-live-afters instrs)
+  (cond [(empty? instrs) `(,(set))]
+        [else (let [(live-afters (compute-live-afters (cdr instrs)))] (cons
+                                                                       (set-union (set-subtract (car live-afters) (written-to (car instrs))) (read-from (car instrs)))
+                                                                       live-afters))]))
+
+(define (uncover-live p)
+  (match p
+    [(Program info (CFG B-list))
+     (Program info (CFG (map (lambda (x)  (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block (cons `(live-afters . ,(compute-live-afters instrs)) info) instrs))])) B-list)))]))
+
+;Print the live-after sets
+(define (print-lives p)
+  (match p
+    [(Program info (CFG B-list))
+     (map (lambda (x) (match x
+                        [`(,label . ,(Block info instrs)) (print (match-alist 'live-afters info))])) B-list)]))
 (define (generate-assignments locals start)
   (cond [(empty? locals) '()]
         [else (match (car locals)
