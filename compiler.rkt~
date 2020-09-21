@@ -60,18 +60,42 @@
 (test-pe (parse-program `(program () (+ 1 (+ 3 1)))))
 (test-pe (parse-program `(program () (- (+ 3 (- 5))))))
 
+;;;;;;
+;Helpers
+;;;;;
+
+(define (match-alist var alist)
+  [cond [(empty? alist) #f]
+        [(eq? var (car (car alist)))(cdr (car alist))]
+        [else (match-alist var (cdr alist))]])
+
+;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
+(define (split-pairs plist)
+  (cond [(empty? plist) '(() . ())]
+        [else (let [(rest-plist (split-pairs (cdr plist)))] `(,(cons (car (car plist)) (car rest-plist)) . ,(append (cdr (car plist)) (cdr rest-plist))))]))
+
+
+(define (last-value ls)
+  (cond [(empty? ls) #f]
+        [(empty? (cdr ls)) (car ls)]
+        [else (last-value (cdr ls))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; HW1 Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
 
 (define (uniquify-exp symtab)
   (lambda (e)
     (match e
       [(Var x)
-       (error "TODO: code goes here (uniquify-exp, symbol?)")]
+       (Var (match-alist x symtab))]
       [(Int n) (Int n)]
       [(Let x e body)
-       (error "TODO: code goes here (uniquify-exp, let)")]
+      (let ([y (gensym x)])
+        (Let y ((uniquify-exp symtab) e) ((uniquify-exp (cons `(,x . ,y) symtab)) body)))]
       [(Prim op es)
        (Prim op (for/list ([e es]) ((uniquify-exp symtab) e)))]
       )))
@@ -83,26 +107,178 @@
      (Program info ((uniquify-exp '()) e))]
     ))
 
+;Expands an alist into let expression binding each variable to its associated expression
+(define (expand-alist alist base)
+  (cond [(empty? alist) base]
+        [else (Let (car (car alist)) (cdr (car alist)) (expand-alist (cdr alist) base))]))
+
+  
+(define (rco-atom e)
+  (match e
+      [(Var x) (values (Var x) '())]
+      [(Int n) (values (Int n) '())]
+      [(Let x e body)
+       (let [(tmp (gensym "tmp"))]
+         (values (Var tmp) `((,tmp . ,(Let x (rco-exp e) (rco-exp body))))))]
+      [(Prim op es)
+       (let [(tmp (gensym "tmp"))]
+        (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
+      ))
+
+(define (rco-exp e)
+  (match e
+      [(Var x) (Var x)]
+      [(Int n) (Int n)]
+      [(Let x e body)
+       (Let x (rco-exp e) (rco-exp body))]
+      [(Prim op es)
+       (let [(exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))] (expand-alist (cdr exps) (Prim op (car exps))))]
+      ))
+
 ;; remove-complex-opera* : R1 -> R1
 (define (remove-complex-opera* p)
-  (error "TODO: code goes here (remove-complex-opera*)"))
+  (match p
+    [(Program info e)
+     (Program info (rco-exp e))]
+    ))
+
+
+;;Assigns a variable to whatever an expression would return then adds the tail on
+(define (do-assignment exp var tail)
+  (match exp
+    [(Return (Int n)) (Seq (Assign var (Int n)) tail)]
+    [(Return (Var x)) (Seq (Assign var (Var x)) tail)]
+    [(Return (Prim op es)) (Seq (Assign var (Prim op es)) tail)]
+    [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]))
+
+(define (explicate-assign exp var tail)
+  (begin (define-values (exp-tail exp-vars) (explicate-tail exp)) (define-values (tail-tail tail-vars) (explicate-tail tail))
+         (values (do-assignment exp-tail var tail-tail) (append exp-vars tail-vars))))
+
+(define (explicate-tail e)
+  (match e
+    [(Var x) (values (Return (Var x)) '())]
+      [(Int n) (values (Return (Int n)) '())]
+      [(Let x e body)
+       (begin (define-values (tail vars) (explicate-assign e (Var x) body)) (values tail (cons (Var x) vars)))]
+      [(Prim op es)
+       (values (Return (Prim op es)) '())]
+      ))
 
 ;; explicate-control : R1 -> C0
 (define (explicate-control p)
-  (error "TODO: code goes here (explicate-control)"))
+  (match p
+    [(Program info e)
+     (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) (CFG `((start . ,tail)))))]
+    ))
 
-;; select-instructions : C0 -> pseudo-x86
+(define (slct-atom e)
+    (match e
+     [(Var x) (Var x)]
+     [(Int x) (Imm x)]))
+        
+(define (slct-stmt tail)
+  (match tail
+    [(Assign (Var x) exp)
+     (match exp
+       [(Int n) (list (Instr 'movq (list (Imm n) (Var x))))]
+       [(Var y) (list (Instr 'movq (list (Var y) (Var x))))]
+       [(Prim 'read es) (list (Callq 'read_int) (Instr 'movq (list (Reg 'rax) (Var x))))]
+       [(Prim '- (list y)) #:when (eq? (Var x) y) (list (Instr 'negq (list (Var x))))]
+       [(Prim '- (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
+       [(Prim '+ (list y v)) #:when (eq? (Var x) y) (list (Instr 'addq (list (slct-atom v) (Var x))))]
+       [(Prim '+ (list y v)) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
+       [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))])]))
+
+(define (slct-tail e)
+  (match e
+    [(Seq s t) (append (slct-stmt s) (slct-tail t))]
+    [(Return r)
+     (match r
+       [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp 'conclusion))]
+       [(Var y) (list (Instr 'movq (list (Var y) (Reg 'rax))) (Jmp 'conclusion))]
+       [(Prim 'read es) (list (Callq 'read_int)  (Jmp 'conclusion))]
+       [(Prim '- (list y)) (list
+                            (Instr 'movq (list (slct-atom y) (Reg 'rax)))
+                            (Instr 'negq (list (Reg 'rax)))
+                            (Jmp 'conclusion))]
+       [(Prim '+ (list y v)) (list
+                              (Instr 'movq (list (slct-atom y) (Reg 'rax)))
+                              (Instr 'addq (list (slct-atom v) (Reg 'rax)))
+                              (Jmp 'conclusion))])]))
+
 (define (select-instructions p)
-  (error "TODO: code goes here (select-instructions)"))
+  (match p
+    [(Program info (CFG B-list))
+     (Program info (CFG (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))]))                        
+
+(define (generate-assignments locals start)
+  (cond [(empty? locals) '()]
+        [else (match (car locals)
+                [(Var v) (cons `(,v . ,start) (generate-assignments (cdr locals) (+ start (- 8))))])]))
+
+(define (assign-instr inst homes)
+  (match inst
+    [(Var v) (Deref 'rbp (match-alist v homes))]
+    [(Instr inst args) (Instr inst (map (lambda (i) (assign-instr i homes)) args))]
+    [x x]))
+
+(define (assign-block instrs homes)
+  (map (lambda (i) (assign-instr i homes)) instrs))
+
 
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
-  (error "TODO: code goes here (assign-homes)"))
+  (match p
+    [(Program info (CFG B-list))
+     (let [(homes (generate-assignments (match-alist 'locals info) -8))]
+     (Program `((stack-size . ,(- (let [(size (last-value homes))] (if (false? size) 0 (cdr size)))))) (CFG (map (lambda (x) (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
-;; patch-instructions : psuedo-x86 -> x86
+(define (do-patch  instruction)
+  (match instruction
+    [(Instr e (list (Deref  reg off) (Deref reg2 off2)))
+         (list (Instr 'movq (list (Deref reg off) (Reg 'rax)))
+               (Instr e (list (Reg 'rax) (Deref reg2 off2))))]
+    [else (list instruction)]))
+
+(define (patch e)
+  (match e
+    [(Block '() exp) (Block '() (append-map do-patch exp))]
+    ))
+
 (define (patch-instructions p)
-  (error "TODO: code goes here (patch-instructions)"))
+   (match p
+    [(Program info (CFG B-list))
+     (Program info
+              (CFG
+               (map
+                (lambda (x) `(,(car x) . ,(patch (cdr x)))) B-list)))]))
+       
+
+;; generates an x86 representation of the main clause
+(define (make-main stack-size)
+  (Block '() (if (zero? stack-size) (list (Jmp 'start)) (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))) (Instr 'subq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Jmp 'start)))))
+
+;; generates an x86 representation of the conclusion
+
+(define (make-conclusion stack-size)
+  (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Instr 'popq (list (Reg 'rbp))) (Instr 'retq '())))))
+
+;;Turns a block and its label into a string
+(define (stringify-block label block)
+  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~nmain") label) (match block
+                              ([Block info instrs] (foldr (lambda (x rs) (string-append (format "~a" x) rs)) "" instrs)))))
+
+;;Converts an alist of labeled x86 blocks to their string representation
+(define (x86-to-string blocks)
+  (foldr (lambda (x rs) (string-append (stringify-block (car x) (cdr x)) rs)) "" blocks))
 
 ;; print-x86 : x86 -> string
 (define (print-x86 p)
-  (error "TODO: code goes here (print-x86)"))
+  (match p
+    [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
+                                   (let [(main (make-main stack-size))]
+                                     (let [(conclusion (make-conclusion stack-size))]
+                                       (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
+                                       )))]))

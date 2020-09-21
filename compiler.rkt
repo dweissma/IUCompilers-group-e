@@ -6,6 +6,8 @@
 (require "interp.rkt")
 (require "utilities.rkt")
 (provide (all-defined-out))
+(require graph)
+(require racket/trace)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; R0 examples
@@ -244,6 +246,52 @@
     [(Program info (CFG B-list))
      (map (lambda (x) (match x
                         [`(,label . ,(Block info instrs)) (print (match-alist 'live-afters info))])) B-list)]))
+
+(define all-registers (list 'rax 'r11 'r15 'rbp
+                             'rcx 'rdx 'rsi 'rdi
+                             'r8 'r9 'r10 'rbx
+                             'r12 'r13 'r14))
+
+(define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11))
+
+(define (add-from-instr graph instr live-after)
+  (match instr
+    [(Instr 'addq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y))) (add-edge! graph x y))]
+    [(Instr 'addq `(,arg ,(Reg r)))#:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
+    [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! x y)))]
+    [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
+    [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
+    [(Instr 'movq `(,(Reg r) ,(Var y))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
+    [(Instr 'movq `(,(Reg r1) ,(Reg r2))) #:when (and (not (eq? r1 'rax)) (not (eq? r2 'rax))) (for ([x live-after]) (add-edge! graph x r2))]
+    [(Instr 'movq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
+    [(Instr 'movq `(,arg ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
+    [else graph]))
+
+
+(define (add-block-to-graph graph instrs lives)
+  (cond [(empty? instrs) graph]
+        [else (begin (add-from-instr (add-block-to-graph graph (cdr instrs) (cdr lives)) (car instrs) (car lives)) graph)]))
+
+(define (graph-from-blist B-list locals)
+  (cond [(empty? B-list) (begin
+                           (define g (unweighted-graph/undirected '()))
+                           (for ([x (cdr all-registers)]) (add-vertex! g x))
+                           (for ([x locals]) (add-vertex! g x))
+                           g)]
+        [else (match (car B-list)
+                [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)))])]))
+                                                                             
+
+(define (build-interference p)
+  (match p
+    [(Program info (CFG B-list))
+     (let [(igraph (graph-from-blist B-list (match-alist 'locals info)))] (Program (cons `(interference-graph . ,igraph) info) (CFG B-list)))]))
+
+(define (extract-interference p)
+  (match p
+    [(Program info (CFG B-list))
+     (match-alist 'interference-graph info)]))
+
 (define (generate-assignments locals start)
   (cond [(empty? locals) '()]
         [else (match (car locals)
