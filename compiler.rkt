@@ -71,6 +71,11 @@
         [(eq? var (car (car alist)))(cdr (car alist))]
         [else (match-alist var (cdr alist))]])
 
+(define (rev-match-alist var alist)
+  [cond [(empty? alist) #f]
+        [(equal? var (cdr (car alist))) (car (car alist))]
+        [else (rev-match-alist var (cdr alist))]])
+
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
   (cond [(empty? plist) '(() . ())]
@@ -258,7 +263,7 @@
   (match instr
     [(Instr 'addq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y))) (add-edge! graph x y))]
     [(Instr 'addq `(,arg ,(Reg r)))#:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
-    [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! x y)))]
+    [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! graph x y)))]
     [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
     [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
     [(Instr 'movq `(,(Reg r) ,(Var y))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
@@ -292,14 +297,64 @@
     [(Program info (CFG B-list))
      (match-alist 'interference-graph info)]))
 
-(define (generate-assignments locals start)
+(define reg-colors
+  '((rax . -1) (rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
+    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10) (r11 . 11) (r15 . 12) (rbp . 13)))
+    
+
+(define (in-alist alist key)
+  (cond [(empty? alist) #f]
+        [(or (equal? key (car (car alist))) (in-alist (cdr alist) key))]))
+
+;Add register colors to the registers already in the graph
+(define (preprocess-graph g)
+  (begin (for ([x (get-vertices g)] #:when (match-alist x reg-colors)) (rename-vertex! g x `(,x . ,(match-alist x reg-colors))))
+         g))
+
+(define (smallest-missing-nat ls n)
+  (cond [(false? (member n ls)) n]
+        [else (smallest-missing-nat ls (add1 n))]))
+
+(define (color-graph-accum g locals accum)
+  (let [(vars (filter (lambda (x) (not (pair? x))) (get-vertices g)))]
+    (cond [(empty? vars) accum] ;no colors needed everything is already colored
+          [else (let [(most-constrained (car (sort vars #:key (lambda (v) (length (filter pair? (get-neighbors g v)))) >)))]
+                  (let [(used-colors (map cdr (filter pair? (get-neighbors g most-constrained))))]
+                    (let [(color (smallest-missing-nat used-colors 0))]
+                    (begin (rename-vertex! g most-constrained `(,most-constrained . ,color))
+                           (color-graph-accum g locals (cons `(,most-constrained . ,color) accum))))))])))
+                    
+
+(define (color-graph g locals)
+  (color-graph-accum g locals '()))
+
+(define (compute-stack-size homes msf)
+  (cond [(empty? homes) msf]
+        [else (match (car homes)
+                [`(,var . ,(Deref reg loc)) (if (> (- loc) msf) (compute-stack-size (cdr homes) (- loc))
+                                                (compute-stack-size (cdr homes) msf))]
+                [x (compute-stack-size (cdr homes) msf)])]))
+  
+
+(define (allocate-registers p)
+  (match p
+    [(Program info (CFG B-list))
+     (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
+     (Program `((stack-size . ,(compute-stack-size homes 0))) (CFG (map (lambda (x) (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
+   
+(define (assign-nat n)
+  (cond [(> n 13) (Deref 'rbp (* (- n 13) (- 8)))]
+        [else (Reg (rev-match-alist n reg-colors))]))
+     
+(define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
         [else (match (car locals)
-                [(Var v) (cons `(,v . ,start) (generate-assignments (cdr locals) (+ start (- 8))))])]))
+                [(Var v) (cons `(,v . ,(assign-nat (match-alist v colors))) (generate-assignments (cdr locals) colors))])]))
 
 (define (assign-instr inst homes)
   (match inst
-    [(Var v) (Deref 'rbp (match-alist v homes))]
+    [(Var v) (match-alist v homes)]
     [(Instr inst args) (Instr inst (map (lambda (i) (assign-instr i homes)) args))]
     [x x]))
 
@@ -307,7 +362,7 @@
   (map (lambda (i) (assign-instr i homes)) instrs))
 
 
-;; assign-homes : pseudo-x86 -> pseudo-x86
+;; assign-homes : pseudo-x86 -> pseudo-x86 Deprecated in favor of allocate-registers
 (define (assign-homes p)
   (match p
     [(Program info (CFG B-list))
