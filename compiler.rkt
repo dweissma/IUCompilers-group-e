@@ -281,7 +281,7 @@
   (cond [(empty? B-list) (begin
                            (define g (unweighted-graph/undirected '()))
                            (for ([x (cdr all-registers)]) (add-vertex! g x))
-                           (for ([x locals]) (add-vertex! g x))
+                           (for ([x locals]) (match x [(Var y) (add-vertex! g y)]))
                            g)]
         [else (match (car B-list)
                 [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)))])]))
@@ -299,7 +299,7 @@
 
 (define reg-colors
   '((rax . -1) (rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
-    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10) (r11 . 11) (r15 . 12) (rbp . 13)))
+    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10) (r11 . 11) (r15 . 12)))
     
 
 (define (in-alist alist key)
@@ -328,8 +328,11 @@
 (define (color-graph g locals)
   (color-graph-accum g locals '()))
 
+(define (round-stack-to-16 n)
+  (if (zero? (modulo n 16)) n (+ n 8)))
+
 (define (compute-stack-size homes msf)
-  (cond [(empty? homes) msf]
+  (cond [(empty? homes) (round-stack-to-16 msf)]
         [else (match (car homes)
                 [`(,var . ,(Deref reg loc)) (if (> (- loc) msf) (compute-stack-size (cdr homes) (- loc))
                                                 (compute-stack-size (cdr homes) msf))]
@@ -344,7 +347,7 @@
      [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
    
 (define (assign-nat n)
-  (cond [(> n 13) (Deref 'rbp (* (- n 13) (- 8)))]
+  (cond [(> n 12) (Deref 'rbp (* (- n 12) (- 8)))]
         [else (Reg (rev-match-alist n reg-colors))]))
      
 (define (generate-assignments locals colors)
@@ -379,7 +382,7 @@
 
 (define (patch e)
   (match e
-    [(Block '() exp) (Block '() (append-map do-patch exp))]
+    [(Block info exp) (Block '() (append-map do-patch exp))]
     ))
 
 (define (patch-instructions p)
