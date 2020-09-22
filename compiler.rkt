@@ -403,10 +403,16 @@
 (define (make-conclusion stack-size)
   (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Instr 'popq (list (Reg 'rbp))) (Instr 'retq '())))))
 
+(define (stringify-instr instr)
+  (match instr
+    [(Callq label) (format "\tcallq ~a\n" (label-name label))]
+    [(Jmp label) (format "\tjmp ~a\n" (label-name label))]
+    [x (format "\t~a" x)]))
+
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
-  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~nmain") label) (match block
-                              ([Block info instrs] (foldr (lambda (x rs) (string-append (format "~a" x) rs)) "" instrs)))))
+  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~n~a" (label-name label)) (label-name label)) (match block
+                              ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
 
 ;;Converts an alist of labeled x86 blocks to their string representation
 (define (x86-to-string blocks)
