@@ -255,9 +255,10 @@
 (define all-registers (list 'rax 'r11 'r15 'rbp
                              'rcx 'rdx 'rsi 'rdi
                              'r8 'r9 'r10 'rbx
-                             'r12 'r13 'r14))
+                             'r12 'r13 'r14 'rsp))
 
-(define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11))
+(define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11)) ;Excludes rax since it won't be in the interference graph
+(define callee-registers '(r12 r13 r14 rbx rbp))
 
 (define (add-from-instr graph instr live-after)
   (match instr
@@ -298,8 +299,8 @@
      (match-alist 'interference-graph info)]))
 
 (define reg-colors
-  '((rax . -1) (rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
-    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10) (r11 . 11) (r15 . 12)))
+  '((rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
+    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10)))
     
 
 (define (in-alist alist key)
@@ -329,27 +330,26 @@
   (color-graph-accum g locals '()))
 
 (define (round-stack-to-16 n)
-  (if (zero? (modulo n 16)) n (+ n 8)))
+  (if (zero? n) 16 (if (zero? (modulo n 16)) n (+ n 8))))
 
-(define (compute-stack-size homes msf)
-  (cond [(empty? homes) (round-stack-to-16 msf)]
+(define (compute-stack-size homes)
+  (cond [(empty? homes) 0]
         [else (match (car homes)
-                [`(,var . ,(Deref reg loc)) (if (> (- loc) msf) (compute-stack-size (cdr homes) (- loc))
-                                                (compute-stack-size (cdr homes) msf))]
-                [x (compute-stack-size (cdr homes) msf)])]))
-  
-
+                [`(,var . ,(Deref reg loc)) (+ 8 (compute-stack-size (cdr homes)))]
+                [x (compute-stack-size (cdr homes))])]))
+ 
 (define (allocate-registers p)
   (match p
     [(Program info (CFG B-list))
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
-     (Program `((stack-size . ,(compute-stack-size homes 0))) (CFG (map (lambda (x) (match x
+     (Program `((stack-size . ,(compute-stack-size homes)) (used-regs . ,(filter Reg? (map cdr homes)))) (CFG (map (lambda (x) (match x
      [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
    
 (define (assign-nat n)
-  (cond [(> n 12) (Deref 'rbp (* (- n 12) (- 8)))]
-        [else (Reg (rev-match-alist n reg-colors))]))
-     
+  (let [(last-reg (sub1 (length reg-colors)))]
+    (cond [(> n last-reg) (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
+          [else (Reg (rev-match-alist n reg-colors))])))
+
 (define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
         [else (match (car locals)
@@ -395,18 +395,36 @@
        
 
 ;; generates an x86 representation of the main clause
-(define (make-main stack-size)
-  (Block '() (if (zero? stack-size) (list (Jmp 'start)) (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))) (Instr 'subq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Jmp 'start)))))
+(define (make-main stack-size used-regs)
+  (let ([extra-pushes (filter (lambda (reg)
+                                (match reg
+                                  [(Reg x) (index-of callee-registers x)]
+                                  [x false]))
+                              used-regs)])
+    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (append (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp))) (Jmp 'start)))))))
 
 ;; generates an x86 representation of the conclusion
 
-(define (make-conclusion stack-size)
-  (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Instr 'popq (list (Reg 'rbp))) (Instr 'retq '())))))
+(define (make-conclusion stack-size used-regs)
+  (let ([extra-pops (filter (lambda (reg)
+                                (match reg
+                                  [(Reg x) (index-of callee-registers x)]
+                                  [x false]))
+                              used-regs)])
+    (Block '() (append (list (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) (Retq)))))))
+
+(define (stringify-ref ref)
+  (match ref
+    [(Imm x) (format "$~a" x)]
+    [(Reg x) (format "%~a" x)]
+    [(Deref reg loc) (format "~a(%~a)" loc reg)]))
 
 (define (stringify-instr instr)
   (match instr
     [(Callq label) (format "\tcallq ~a\n" (label-name label))]
     [(Jmp label) (format "\tjmp ~a\n" (label-name label))]
+    [(Instr name regs) (format "\t~a ~a\n" name (string-join (map stringify-ref regs) ", "))]
+    [(Retq) (format "\tretq \n")]
     [x (format "\t~a" x)]))
 
 ;;Turns a block and its label into a string
@@ -422,7 +440,8 @@
 (define (print-x86 p)
   (match p
     [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
-                                   (let [(main (make-main stack-size))]
-                                     (let [(conclusion (make-conclusion stack-size))]
-                                       (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
-                                       )))]))
+                                   (let [(used-regs (set->list (list->set (match-alist 'used-regs info))))]
+                                     (let [(main (make-main stack-size used-regs))]
+                                       (let [(conclusion (make-conclusion stack-size used-regs))]
+                                         (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
+                                         ))))]))
