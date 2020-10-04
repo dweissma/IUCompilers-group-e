@@ -6,6 +6,8 @@
 (require "interp.rkt")
 (require "utilities.rkt")
 (provide (all-defined-out))
+(require graph)
+(require racket/trace)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; R0 examples
@@ -68,6 +70,11 @@
   [cond [(empty? alist) #f]
         [(eq? var (car (car alist)))(cdr (car alist))]
         [else (match-alist var (cdr alist))]])
+
+(define (rev-match-alist var alist)
+  [cond [(empty? alist) #f]
+        [(equal? var (cdr (car alist))) (car (car alist))]
+        [else (rev-match-alist var (cdr alist))]])
 
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
@@ -212,14 +219,145 @@
     [(Program info (CFG B-list))
      (Program info (CFG (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))]))                        
 
-(define (generate-assignments locals start)
+(define (written-to instr)
+  (match instr
+    [(Instr 'negq (list (Var x))) (set x)]
+    [(Instr i `(,arg ,(Var x))) (set x)]
+    [x (set)]))
+
+(define (read-from instr)
+  (match instr
+    [(Instr 'negq (list (Var x))) (set x)]
+    [(Instr 'addq `(,(Var x) ,(Var y))) (set x y)]
+    [(Instr 'addq `(,arg ,(Var x))) (set x)]
+    [(Instr i `(,(Var x) ,arg)) (set x)]
+    [x (set)]))
+
+(define (compute-live-afters instrs)
+  (cond [(empty? instrs) `(,(set))]
+        [else (let [(live-afters (compute-live-afters (cdr instrs)))] (cons
+                                                                       (set-union (set-subtract (car live-afters) (written-to (car instrs))) (read-from (car instrs)))
+                                                                       live-afters))]))
+
+(define (uncover-live p)
+  (match p
+    [(Program info (CFG B-list))
+     (Program info (CFG (map (lambda (x)  (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block (cons `(live-afters . ,(compute-live-afters instrs)) info) instrs))])) B-list)))]))
+
+;Print the live-after sets
+(define (print-lives p)
+  (match p
+    [(Program info (CFG B-list))
+     (map (lambda (x) (match x
+                        [`(,label . ,(Block info instrs)) (print (match-alist 'live-afters info))])) B-list)]))
+
+(define all-registers (list 'rax 'r11 'r15 'rbp
+                             'rcx 'rdx 'rsi 'rdi
+                             'r8 'r9 'r10 'rbx
+                             'r12 'r13 'r14))
+
+(define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11))
+
+(define (add-from-instr graph instr live-after)
+  (match instr
+    [(Instr 'addq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y))) (add-edge! graph x y))]
+    [(Instr 'addq `(,arg ,(Reg r)))#:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
+    [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! graph x y)))]
+    [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
+    [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
+    [(Instr 'movq `(,(Reg r) ,(Var y))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
+    [(Instr 'movq `(,(Reg r1) ,(Reg r2))) #:when (and (not (eq? r1 'rax)) (not (eq? r2 'rax))) (for ([x live-after]) (add-edge! graph x r2))]
+    [(Instr 'movq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
+    [(Instr 'movq `(,arg ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
+    [else graph]))
+
+
+(define (add-block-to-graph graph instrs lives)
+  (cond [(empty? instrs) graph]
+        [else (begin (add-from-instr (add-block-to-graph graph (cdr instrs) (cdr lives)) (car instrs) (car lives)) graph)]))
+
+(define (graph-from-blist B-list locals)
+  (cond [(empty? B-list) (begin
+                           (define g (unweighted-graph/undirected '()))
+                           (for ([x (cdr all-registers)]) (add-vertex! g x))
+                           (for ([x locals]) (match x [(Var y) (add-vertex! g y)]))
+                           g)]
+        [else (match (car B-list)
+                [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)))])]))
+                                                                             
+
+(define (build-interference p)
+  (match p
+    [(Program info (CFG B-list))
+     (let [(igraph (graph-from-blist B-list (match-alist 'locals info)))] (Program (cons `(interference-graph . ,igraph) info) (CFG B-list)))]))
+
+(define (extract-interference p)
+  (match p
+    [(Program info (CFG B-list))
+     (match-alist 'interference-graph info)]))
+
+(define reg-colors
+  '((rax . -1) (rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
+    (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10) (r11 . 11) (r15 . 12)))
+    
+
+(define (in-alist alist key)
+  (cond [(empty? alist) #f]
+        [(or (equal? key (car (car alist))) (in-alist (cdr alist) key))]))
+
+;Add register colors to the registers already in the graph
+(define (preprocess-graph g)
+  (begin (for ([x (get-vertices g)] #:when (match-alist x reg-colors)) (rename-vertex! g x `(,x . ,(match-alist x reg-colors))))
+         g))
+
+(define (smallest-missing-nat ls n)
+  (cond [(false? (member n ls)) n]
+        [else (smallest-missing-nat ls (add1 n))]))
+
+(define (color-graph-accum g locals accum)
+  (let [(vars (filter (lambda (x) (not (pair? x))) (get-vertices g)))]
+    (cond [(empty? vars) accum] ;no colors needed everything is already colored
+          [else (let [(most-constrained (car (sort vars #:key (lambda (v) (length (filter pair? (get-neighbors g v)))) >)))]
+                  (let [(used-colors (map cdr (filter pair? (get-neighbors g most-constrained))))]
+                    (let [(color (smallest-missing-nat used-colors 0))]
+                    (begin (rename-vertex! g most-constrained `(,most-constrained . ,color))
+                           (color-graph-accum g locals (cons `(,most-constrained . ,color) accum))))))])))
+                    
+
+(define (color-graph g locals)
+  (color-graph-accum g locals '()))
+
+(define (round-stack-to-16 n)
+  (if (zero? (modulo n 16)) n (+ n 8)))
+
+(define (compute-stack-size homes msf)
+  (cond [(empty? homes) (round-stack-to-16 msf)]
+        [else (match (car homes)
+                [`(,var . ,(Deref reg loc)) (if (> (- loc) msf) (compute-stack-size (cdr homes) (- loc))
+                                                (compute-stack-size (cdr homes) msf))]
+                [x (compute-stack-size (cdr homes) msf)])]))
+  
+
+(define (allocate-registers p)
+  (match p
+    [(Program info (CFG B-list))
+     (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
+     (Program `((stack-size . ,(compute-stack-size homes 0))) (CFG (map (lambda (x) (match x
+     [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
+   
+(define (assign-nat n)
+  (cond [(> n 12) (Deref 'rbp (* (- n 12) (- 8)))]
+        [else (Reg (rev-match-alist n reg-colors))]))
+     
+(define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
         [else (match (car locals)
-                [(Var v) (cons `(,v . ,start) (generate-assignments (cdr locals) (+ start (- 8))))])]))
+                [(Var v) (cons `(,v . ,(assign-nat (match-alist v colors))) (generate-assignments (cdr locals) colors))])]))
 
 (define (assign-instr inst homes)
   (match inst
-    [(Var v) (Deref 'rbp (match-alist v homes))]
+    [(Var v) (match-alist v homes)]
     [(Instr inst args) (Instr inst (map (lambda (i) (assign-instr i homes)) args))]
     [x x]))
 
@@ -227,7 +365,7 @@
   (map (lambda (i) (assign-instr i homes)) instrs))
 
 
-;; assign-homes : pseudo-x86 -> pseudo-x86
+;; assign-homes : pseudo-x86 -> pseudo-x86 Deprecated in favor of allocate-registers
 (define (assign-homes p)
   (match p
     [(Program info (CFG B-list))
@@ -244,7 +382,7 @@
 
 (define (patch e)
   (match e
-    [(Block '() exp) (Block '() (append-map do-patch exp))]
+    [(Block info exp) (Block '() (append-map do-patch exp))]
     ))
 
 (define (patch-instructions p)
@@ -265,10 +403,16 @@
 (define (make-conclusion stack-size)
   (Block '() (if (zero? stack-size) (list (Retq)) (list (Instr 'addq (list (Imm (+ 8 stack-size)) (Reg 'rsp))) (Instr 'popq (list (Reg 'rbp))) (Instr 'retq '())))))
 
+(define (stringify-instr instr)
+  (match instr
+    [(Callq label) (format "\tcallq ~a\n" (label-name label))]
+    [(Jmp label) (format "\tjmp ~a\n" (label-name label))]
+    [x (format "\t~a" x)]))
+
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
-  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~nmain") label) (match block
-                              ([Block info instrs] (foldr (lambda (x rs) (string-append (format "~a" x) rs)) "" instrs)))))
+  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~n~a" (label-name label)) (label-name label)) (match block
+                              ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
 
 ;;Converts an alist of labeled x86 blocks to their string representation
 (define (x86-to-string blocks)

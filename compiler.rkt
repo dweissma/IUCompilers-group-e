@@ -135,10 +135,7 @@
                                         (Let t2 (shrink-exp second)
                                              (Prim 'and (list (Prim 'not (list (Prim 'eq? (list (Var t1) (Var t2)))))
                                                    (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))))]
-    [(Prim '>= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
-                                   (Let t1 (shrink-exp first)
-                                        (Let t2 (shrink-exp second)
-                                           (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))]
+    [(Prim '>= `(,first ,second)) (Prim 'not (list (Prim '< (list (shrink-exp first) (shrink-exp second)))))]
     [(Prim '<= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
                                         (Let t2 (shrink-exp second)
@@ -192,10 +189,18 @@
       [(Int n) (values (Int n) '())]
       [(Let x e body)
        (let [(tmp (gensym "tmp"))]
-         (values (Var tmp) `((,tmp . ,(Let x (rco-exp e) (rco-exp body))))))]
+         (begin (define-values (e-val e-alist) (rco-atom e))
+                (define-values (body-val body-alist) (rco-atom body))
+                (values (Var tmp) (append e-alist body-alist `((,tmp . ,(Let x e-val body-val)))))))]
       [(Prim op es)
+       (let [(tmp (gensym "tmp")) (exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))]
+        (values (Var tmp) (append (cdr exps) `((,tmp . ,(Prim op (car exps)))))))]
+      [(If cond exp else)
        (let [(tmp (gensym "tmp"))]
-        (values (Var tmp) `((,tmp . ,(rco-exp (Prim op es))))))]
+         (begin (define-values (cond-val cond-alist) (rco-atom cond))
+                (define-values (exp-val exp-alist) (rco-atom exp))
+                (define-values (else-val else-alist) (rco-atom else))
+         (values (Var tmp) (append cond-alist exp-alist else-alist `((,tmp . ,(rco-exp (If cond-val exp-val else-val))))))))]
       ))
 
 (define (rco-exp e)
@@ -203,9 +208,15 @@
       [(Var x) (Var x)]
       [(Int n) (Int n)]
       [(Let x e body)
-       (Let x (rco-exp e) (rco-exp body))]
+       (begin (define-values (e-val e-alist) (rco-atom e))
+              (expand-alist e-alist (Let x e-val (rco-exp body))))]
       [(Prim op es)
        (let [(exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))] (expand-alist (cdr exps) (Prim op (car exps))))]
+      [(If cond exp else)
+       (begin (define-values (cond-var cond-alist) (rco-atom cond))
+              (define-values (exp-var exp-alist) (rco-atom exp))
+              (define-values (else-var else-alist) (rco-atom else))
+              (expand-alist (append cond-alist exp-alist else-alist) (If cond-var exp-var else-var)))]
       ))
 
 ;; remove-complex-opera* : R1 -> R1
