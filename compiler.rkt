@@ -190,8 +190,7 @@
       [(Let x e body)
        (let [(tmp (gensym "tmp"))]
          (begin (define-values (e-val e-alist) (rco-atom e))
-                (define-values (body-val body-alist) (rco-atom body))
-                (values (Var tmp) (append e-alist body-alist `((,tmp . ,(Let x e-val body-val)))))))]
+                (values (Var tmp) (append e-alist  `((,tmp . ,(Let x e-val (rco-exp body))))))))]
       [(Prim op es)
        (let [(tmp (gensym "tmp")) (exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))]
         (values (Var tmp) (append (cdr exps) `((,tmp . ,(Prim op (car exps)))))))]
