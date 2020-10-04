@@ -88,10 +88,75 @@
         [else (last-value (cdr ls))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; HW1 Passes
+;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (type-check-exp env e)
+  (match e
+    [(Var x)
+     (Var (match-alist x env))]
+    [(Int n) 'Integer]
+    [(Bool bool) 'Boolean]
+    [(Let x e body)
+     (type-check-exp (cons `(,x . ,(type-check-exp env e)) env) body)]
+    [(Prim 'read es)
+     'Integer]
+    [(Prim op es) #:when (index-of '(- +) op) (if (andmap (lambda (e) (eq? 'Integer (type-check-exp env e))) es)
+                                                  'Integer
+                                                  (error 'type-check-exp "Arthimetic operators only operate on integers"))]
+    [(Prim op es) #:when (index-of '(and or not) op) (if (andmap (lambda (e) (eq? 'Boolean (type-check-exp env e))) es)
+                                                         'Boolean
+                                                         (error 'type-check-exp "Logical operators only operate on booleans"))]
+    [(Prim cmp es) #:when (index-of '(eq? < <= > >=) cmp) (let ([t1 (type-check-exp env (car es))] [t2 (type-check-exp env (cadr es))])
+                      (if (eq? t1 t2)
+                          'Boolean
+                          (error 'type-check-exp "comparison between a boolean and integer not supported")))]
+    [(If cond exp else) (let ([t1 (type-check-exp env exp)] [t2 (type-check-exp env else)])
+                          (if (eq? t1 t2)
+                              (if (eq? 'Boolean (type-check-exp env cond))
+                                  t1
+                                  (error 'type-check-exp "If condition must be a Boolean"))
+                              (error 'type-check-exp "Both if cases must be the same type")))]
+    ))
 
+
+(define (type-check-R2 p)
+  (match p
+    [(Program info e)
+     (if (eq? 'Integer (type-check-exp '() e))
+     (Program info e)
+     (error 'type-check-R2 "R2 programs should type check to an integer"))]))
+
+(define (shrink-exp e)
+  (match e
+    [(Prim '- `(,first ,second)) (Prim '+ `(,(shrink-exp first) ,(Prim '- (list (shrink-exp second)))))]
+    [(Prim '> `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
+                                   (Let t1 (shrink-exp first)
+                                        (Let t2 (shrink-exp second)
+                                             (Prim 'and (list (Prim 'not (list (Prim 'eq? (list (Var t1) (Var t2)))))
+                                                   (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))))]
+    [(Prim '>= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
+                                   (Let t1 (shrink-exp first)
+                                        (Let t2 (shrink-exp second)
+                                           (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))]
+    [(Prim '<= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
+                                   (Let t1 (shrink-exp first)
+                                        (Let t2 (shrink-exp second)
+                                             (Prim 'and (list (Prim 'not (list (Prim 'eq? (list (Var t1) (Var t2)))))
+                                                   (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))))]
+    [(Prim 'or `(,first ,second)) (Prim 'and (list (Prim 'not (list (shrink-exp first))) (Prim 'not (list (shrink-exp second)))))]
+    [(Prim op es) (Prim op (map shrink-exp es))]
+    [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
+    [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
+    [x x]))
+    
+    
+  
+(define (shrink p)
+  (match p
+    [(Program info e)
+     (Program info (shrink-exp e))]
+    ))
 
 
 (define (uniquify-exp symtab)
@@ -105,6 +170,7 @@
         (Let y ((uniquify-exp symtab) e) ((uniquify-exp (cons `(,x . ,y) symtab)) body)))]
       [(Prim op es)
        (Prim op (for/list ([e es]) ((uniquify-exp symtab) e)))]
+      [(If cond exp else) (If ((uniquify-exp symtab) cond) ((uniquify-exp symtab) exp) ((uniquify-exp symtab) else))]
       )))
 
 ;; uniquify : R1 -> R1
