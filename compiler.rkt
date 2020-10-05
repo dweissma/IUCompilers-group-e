@@ -287,7 +287,9 @@
 (define (slct-atom e)
     (match e
      [(Var x) (Var x)]
-     [(Int x) (Imm x)]))
+     [(Int x) (Imm x)]
+     [(Bool #t) (Imm 1)]
+     [(Bool #f) (Imm 0)]))
         
 (define (slct-stmt tail)
   (match tail
@@ -300,11 +302,20 @@
        [(Prim '- (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
        [(Prim '+ (list y v)) #:when (eq? (Var x) y) (list (Instr 'addq (list (slct-atom v) (Var x))))]
        [(Prim '+ (list y v)) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
-       [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))])]))
+       [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))]
+       [(Prim 'not (list y)) #:when (eq? (Var x) y) (list (Instr 'xorq (list (Imm 1) y)))]
+       [(Prim 'not (list y)) (list (Instr 'movq (list y (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
+       [(Prim 'eq (list y z)) (list (Instr 'cmpq (list y z)) (Instr 'sete (list (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))])]))
+
 
 (define (slct-tail e)
   (match e
     [(Seq s t) (append (slct-stmt s) (slct-tail t))]
+    [(Goto label) (Jmp label)]
+    [(IfStmt (Prim 'eq? (list exp1 exp2)) (Goto l1) (Goto l2))
+     (list (Instr 'cmpq (list (slct-atom exp1) (slct-atom exp2))) (JmpIf 'e l1) (Jmp l2))]
+    [(IfStmt (Prim '< (list exp1 exp2)) (Goto l1) (Goto l2))
+     (list (Instr 'cmpq (list (slct-atom exp2) (slct-atom exp1))) (JmpIf 'l l1) (Jmp l2))]
     [(Return r)
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp 'conclusion))]
