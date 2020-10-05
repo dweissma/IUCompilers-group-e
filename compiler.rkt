@@ -76,6 +76,9 @@
         [(equal? var (cdr (car alist))) (car (car alist))]
         [else (rev-match-alist var (cdr alist))]])
 
+(define (remove-duplicates ls)
+  (set->list (list->set ls)))
+
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
   (cond [(empty? plist) '(() . ())]
@@ -207,15 +210,15 @@
       [(Var x) (Var x)]
       [(Int n) (Int n)]
       [(Let x e body)
-       (begin (define-values (e-val e-alist) (rco-atom e))
-              (expand-alist e-alist (Let x e-val (rco-exp body))))]
+       (begin (define e-val (rco-exp e))
+              (Let x e-val (rco-exp body)))]
       [(Prim op es)
        (let [(exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))] (expand-alist (cdr exps) (Prim op (car exps))))]
       [(If cond exp else)
-       (begin (define-values (cond-var cond-alist) (rco-atom cond))
-              (define-values (exp-var exp-alist) (rco-atom exp))
-              (define-values (else-var else-alist) (rco-atom else))
-              (expand-alist (append cond-alist exp-alist else-alist) (If cond-var exp-var else-var)))]
+       (begin (define exp-var (rco-exp exp))
+              (define else-var (rco-exp else))
+              (define cond-var (rco-exp cond))
+              (If cond-var exp-var else-var))]
       ))
 
 ;; remove-complex-opera* : R1 -> R1
@@ -234,25 +237,51 @@
     [(Return (Prim op es)) (Seq (Assign var (Prim op es)) tail)]
     [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]))
 
-(define (explicate-assign exp var tail)
-  (begin (define-values (exp-tail exp-vars) (explicate-tail exp)) (define-values (tail-tail tail-vars) (explicate-tail tail))
-         (values (do-assignment exp-tail var tail-tail) (append exp-vars tail-vars))))
+(define (explicate-assign exp var tail cgraph)
+  (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
+         (values (do-assignment exp-tail var tail) exp-vars exp-graph)))
 
-(define (explicate-tail e)
+(define (explicate-pred e true-lbl false-lbl cgraph)
   (match e
-    [(Var x) (values (Return (Var x)) '())]
-      [(Int n) (values (Return (Int n)) '())]
+    [(Bool bool) (values (IfStmt (Bool bool) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Var x) (values (IfStmt (Var x) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Prim cmp es) (values (IfStmt (Prim cmp es) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-lbl false-lbl cgraph))
+                             (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
+    [(If pred then else) (let ([then-block (gensym "block")] [else-block (gensym "block")])
+                           (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-lbl false-lbl cgraph))
+                                  (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-lbl false-lbl then-cgraph))
+                                  (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-cgraph))
+                                  (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
+                                                                                                                    (cons `(,else-block . ,else-exp) pred-cgraph)))))]
+    ))
+                                  
+    
+
+(define (explicate-tail e cgraph)
+  (match e
+    [(Var x) (values (Return (Var x)) '() cgraph)]
+      [(Int n) (values (Return (Int n)) '() cgraph)]
       [(Let x e body)
-       (begin (define-values (tail vars) (explicate-assign e (Var x) body)) (values tail (cons (Var x) vars)))]
+       (begin (define-values (exp-body body-vars body-graph) (explicate-tail body cgraph))
+         (define-values (tail vars newgraph) (explicate-assign e (Var x) exp-body body-graph))
+         (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
       [(Prim op es)
-       (values (Return (Prim op es)) '())]
+       (values (Return (Prim op es)) '() cgraph)]
+      [(If pred then else)
+        (let ([then-block (gensym "block")] [else-block (gensym "block")])
+          (begin (define-values (then-exp then-vars then-cgraph) (explicate-tail then cgraph))
+                 (define-values (else-exp else-vars else-cgraph) (explicate-tail else then-cgraph))
+                 (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-cgraph))
+                 (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
+                                                                                                                    (cons `(,else-block . ,else-exp) pred-cgraph)))))]
       ))
 
-;; explicate-control : R1 -> C0
+;; explicate-control : R2 -> C1
 (define (explicate-control p)
   (match p
     [(Program info e)
-     (begin (define-values (tail vars) (explicate-tail e)) (Program `((locals . ,vars)) (CFG `((start . ,tail)))))]
+     (begin (define-values (tail vars graph) (explicate-tail e '())) (Program `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]
     ))
 
 (define (slct-atom e)
