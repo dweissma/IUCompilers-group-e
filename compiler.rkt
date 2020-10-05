@@ -9,59 +9,6 @@
 (require graph)
 (require racket/trace)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; R0 examples
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; The following compiler pass is just a silly one that doesn't change
-;; anything important, but is nevertheless an example of a pass. It
-;; flips the arguments of +. -Jeremy
-(define (flip-exp e)
-  (match e
-    [(Var x) e]
-    [(Prim 'read '()) (Prim 'read '())]
-    [(Prim '- (list e1)) (Prim '- (list (flip-exp e1)))]
-    [(Prim '+ (list e1 e2)) (Prim '+ (list (flip-exp e2) (flip-exp e1)))]
-    ))
-
-(define (flip-R0 e)
-  (match e
-    [(Program info e) (Program info (flip-exp e))]
-    ))
-
-
-;; Next we have the partial evaluation pass described in the book.
-(define (pe-neg r)
-  (match r
-    [(Int n) (Int (fx- 0 n))]
-    [else (Prim '- (list r))]))
-
-(define (pe-add r1 r2)
-  (match* (r1 r2)
-    [((Int n1) (Int n2)) (Int (fx+ n1 n2))]
-    [(_ _) (Prim '+ (list r1 r2))]))
-
-(define (pe-exp e)
-  (match e
-    [(Int n) (Int n)]
-    [(Prim 'read '()) (Prim 'read '())]
-    [(Prim '- (list e1)) (pe-neg (pe-exp e1))]
-    [(Prim '+ (list e1 e2)) (pe-add (pe-exp e1) (pe-exp e2))]
-    ))
-
-(define (pe-R0 p)
-  (match p
-    [(Program info e) (Program info (pe-exp e))]
-    ))
-
-(define (test-pe p)
-  (assert "testing pe-R0"
-     (equal? (interp-R0 p) (interp-R0 (pe-R0 p)))))
-
-(test-pe (parse-program `(program () (+ 10 (- (+ 5 3))))))
-(test-pe (parse-program `(program () (+ 1 (+ 3 1)))))
-(test-pe (parse-program `(program () (- (+ 3 (- 5))))))
-
 ;;;;;;
 ;Helpers
 ;;;;;
@@ -89,6 +36,26 @@
   (cond [(empty? ls) #f]
         [(empty? (cdr ls)) (car ls)]
         [else (last-value (cdr ls))]))
+
+(define (get-next-blocks instrs)
+  (cond [(empty? instrs) '()]
+        [else (match (car instrs)
+                [(JmpIf cond lbl) (cons lbl (get-next-blocks (cdr instrs)))]
+                [(Jmp lbl) #:when (not (eq? lbl 'conclusion)) (cons lbl (get-next-blocks (cdr instrs)))]
+                [x (get-next-blocks (cdr instrs))])]))
+
+(define (get-edges blocks)
+  (cond [(empty? blocks) '()]
+        [else (match (car blocks)
+                [`(,label . ,(Block info instrs)) (let ([nexts (get-next-blocks instrs)])
+                                       (append (map (lambda (next) `(,label ,next)) nexts) (get-edges (cdr blocks))))])]))
+
+(define (CFG->graph cfg)
+  (match cfg
+    [(CFG ls) (let ([g (unweighted-graph/directed (get-edges ls))]) (if (not (has-vertex? g 'start))
+                                                                        (begin (add-vertex! g 'start)
+                                                                               g)
+                                                                        g))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
@@ -243,8 +210,8 @@
 
 (define (explicate-pred e true-lbl false-lbl cgraph)
   (match e
-    [(Bool bool) (values (IfStmt (Bool bool) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
-    [(Var x) (values (IfStmt (Var x) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Bool bool) (values (IfStmt (Prim 'eq? (list (Bool bool) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Var x) (values (IfStmt (Prim 'eq? (list (Var x) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
     [(Prim cmp es) (values (IfStmt (Prim cmp es) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
     [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-lbl false-lbl cgraph))
                              (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
@@ -338,6 +305,7 @@
 (define (written-to instr)
   (match instr
     [(Instr 'negq (list (Var x))) (set x)]
+    [(Instr 'cmpq `(,arg ,(Var x))) (set)]
     [(Instr i `(,arg ,(Var x))) (set x)]
     [x (set)]))
 
@@ -346,20 +314,34 @@
     [(Instr 'negq (list (Var x))) (set x)]
     [(Instr 'addq `(,(Var x) ,(Var y))) (set x y)]
     [(Instr 'addq `(,arg ,(Var x))) (set x)]
+    [(Instr 'cmpq `(,(Var x) ,(Var y))) (set x y)]
+    [(Instr 'cmpq `(,arg ,(Var x))) (set x)]
+    [(Instr 'xorq `(,(Var x) ,(Var y))) (set x y)]
+    [(Instr 'xorq `(,arg ,(Var x))) (set x)]
     [(Instr i `(,(Var x) ,arg)) (set x)]
     [x (set)]))
 
-(define (compute-live-afters instrs)
-  (cond [(empty? instrs) `(,(set))]
-        [else (let [(live-afters (compute-live-afters (cdr instrs)))] (cons
+(define (compute-live-afters instrs base)
+  (cond [(empty? instrs) `(,base)]
+        [else (let [(live-afters (compute-live-afters (cdr instrs) base))] (cons
                                                                        (set-union (set-subtract (car live-afters) (written-to (car instrs))) (read-from (car instrs)))
                                                                        live-afters))]))
+(define (do-lives blocks ordering g others)
+  (cond [(empty? ordering) '()]
+        [else (let ([block (match-alist (car ordering) blocks)])
+                (match block
+                  [(Block info instrs) (let ([base (apply set-union (append (map (lambda (n) (car (match-alist n others))) (get-neighbors g (car ordering))) (list (set))))])
+                                         (let ([las (compute-live-afters instrs base)])
+                                           (cons `(,(car ordering) . ,(Block (cons `(live-afters . ,las) info) instrs))
+                                               (do-lives blocks (cdr ordering) g (cons `(,(car ordering) . ,las) others)))))]))]))
+      
 
 (define (uncover-live p)
   (match p
     [(Program info (CFG B-list))
-     (Program info (CFG (map (lambda (x)  (match x
-     [`(,label . ,(Block info instrs)) `(,label . ,(Block (cons `(live-afters . ,(compute-live-afters instrs)) info) instrs))])) B-list)))]))
+     (let ([g (CFG->graph (CFG B-list))])
+       (let ([ordering (tsort (transpose g))])
+         (Program info (CFG (do-lives B-list ordering g '())))))]))
 
 ;Print the live-after sets
 (define (print-lives p)
@@ -376,17 +358,21 @@
 (define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11)) ;Excludes rax since it won't be in the interference graph
 (define callee-registers '(r12 r13 r14 rbx rbp))
 
+(define instrs-with-writes '(addq movq xorq movzbq))
+
 (define (add-from-instr graph instr live-after)
   (match instr
-    [(Instr 'addq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y))) (add-edge! graph x y))]
-    [(Instr 'addq `(,arg ,(Reg r)))#:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
     [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! graph x y)))]
     [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
     [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
     [(Instr 'movq `(,(Reg r) ,(Var y))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
     [(Instr 'movq `(,(Reg r1) ,(Reg r2))) #:when (and (not (eq? r1 'rax)) (not (eq? r2 'rax))) (for ([x live-after]) (add-edge! graph x r2))]
-    [(Instr 'movq `(,arg ,(Var y))) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
-    [(Instr 'movq `(,arg ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after]) (add-edge! graph x r))]
+    [(Instr 'movzbq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
+    [(Instr 'movzbq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
+    [(Instr 'movzbq `(,(Reg r) ,(Var y))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x y)))  (add-edge! graph x y))]
+    [(Instr 'movzbq `(,(Reg r1) ,(Reg r2))) #:when (and (not (eq? r1 'rax)) (not (eq? r2 'rax))) (for ([x live-after]) (add-edge! graph x r2))]
+    [(Instr i `(,arg ,(Var y))) #:when (index-of instrs-with-writes i) (for ([x live-after] #:when (not (equal? x y))) (add-edge! graph x y))]
+    [(Instr i `(,arg ,(Reg r))) #:when (and (index-of instrs-with-writes i) (not (eq? r 'rax))) (for ([x live-after]) (add-edge! graph x r))]
     [else graph]))
 
 
@@ -491,6 +477,12 @@
 
 (define (do-patch  instruction)
   (match instruction
+    [(Instr 'cmpq (list (Imm n1) (Imm n2)))
+     (list (Instr 'movq (list (Imm n2) (Reg 'rax)))
+           (Instr 'cmpq (list (Imm n1) (Reg 'rax))))]
+    [(Instr 'movzbq (list x y)) #:when (not (Reg? y))
+     (list (Instr 'movzbq (list x (Reg 'rax)))
+           (Instr 'movq (list (Reg 'rax) y)))]
     [(Instr e (list (Deref  reg off) (Deref reg2 off2)))
          (list (Instr 'movq (list (Deref reg off) (Reg 'rax)))
                (Instr e (list (Reg 'rax) (Deref reg2 off2))))]
@@ -533,12 +525,15 @@
   (match ref
     [(Imm x) (format "$~a" x)]
     [(Reg x) (format "%~a" x)]
+    [(ByteReg reg) (format "%~a" reg)]
     [(Deref reg loc) (format "~a(%~a)" loc reg)]))
 
 (define (stringify-instr instr)
   (match instr
     [(Callq label) (format "\tcallq ~a\n" (label-name label))]
     [(Jmp label) (format "\tjmp ~a\n" (label-name label))]
+    [(JmpIf cc label) (format "\t j~a ~a\n" cc (label-name label))]
+    [(Instr 'set (list cc arg)) (format "\t set~a ~a\n" cc (stringify-ref arg))]
     [(Instr name regs) (format "\t~a ~a\n" name (string-join (map stringify-ref regs) ", "))]
     [(Retq) (format "\tretq \n")]
     [x (format "\t~a" x)]))
@@ -561,3 +556,4 @@
                                        (let [(conclusion (make-conclusion stack-size used-regs))]
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
+(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions explicate-control remove-complex-opera* uniquify type-check-R2 parse-program (lambda (x) `(program () ,x))))
