@@ -64,7 +64,7 @@
 (define (type-check-exp env e)
   (match e
     [(Var x)
-     (Var (match-alist x env))]
+     (match-alist x env)]
     [(Int n) 'Integer]
     [(Bool bool) 'Boolean]
     [(Let x e body)
@@ -73,20 +73,20 @@
      'Integer]
     [(Prim op es) #:when (index-of '(- +) op) (if (andmap (lambda (e) (eq? 'Integer (type-check-exp env e))) es)
                                                   'Integer
-                                                  (error 'type-check-exp "Arthimetic operators only operate on integers"))]
+                                                  (error (format "Arthimetic operators only operate on integers (got ~a) with env: ~a" (map (lambda (x) (type-check-exp env x)) es) env)))]
     [(Prim op es) #:when (index-of '(and or not) op) (if (andmap (lambda (e) (eq? 'Boolean (type-check-exp env e))) es)
                                                          'Boolean
-                                                         (error 'type-check-exp "Logical operators only operate on booleans"))]
+                                                         (error "Logical operators only operate on booleans"))]
     [(Prim cmp es) #:when (index-of '(eq? < <= > >=) cmp) (let ([t1 (type-check-exp env (car es))] [t2 (type-check-exp env (cadr es))])
                       (if (eq? t1 t2)
                           'Boolean
-                          (error 'type-check-exp "comparison between a boolean and integer not supported")))]
+                          (error "comparison between a boolean and integer not supported")))]
     [(If cond exp else) (let ([t1 (type-check-exp env exp)] [t2 (type-check-exp env else)])
                           (if (eq? t1 t2)
                               (if (eq? 'Boolean (type-check-exp env cond))
                                   t1
-                                  (error 'type-check-exp "If condition must be a Boolean"))
-                              (error 'type-check-exp "Both if cases must be the same type")))]
+                                  (error "If condition must be a Boolean"))
+                              (error "Both if cases must be the same type")))]
     ))
 
 
@@ -100,18 +100,23 @@
 (define (shrink-exp e)
   (match e
     [(Prim '- `(,first ,second)) (Prim '+ `(,(shrink-exp first) ,(Prim '- (list (shrink-exp second)))))]
+    [(Prim 'and `(,first ,second)) (let ([t1 (gensym 'tmp)])
+                                     (Let t1 (shrink-exp first)
+                                          (If (Var t1) (shrink-exp second)  (Bool #f))))]
+    [(Prim 'or `(,first ,second)) (let ([t1 (gensym 'tmp)])
+                                     (Let t1 (shrink-exp first)
+                                          (If (Var t1) (Bool #t) (shrink-exp second))))]
     [(Prim '> `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
                                         (Let t2 (shrink-exp second)
-                                             (Prim 'and (list (Prim 'not (list (Prim 'eq? (list (Var t1) (Var t2)))))
-                                                   (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))))]
-    [(Prim '>= `(,first ,second)) (Prim 'not (list (Prim '< (list (shrink-exp first) (shrink-exp second)))))]
+                                             (If (Prim 'eq? (list (Var t1) (Var t2))) (Bool #f)
+                                                 (Prim 'not (list (Prim '< (list (Var t1) (Var t2)))))))))]
+    [(Prim '>= `(,first ,second)) (shrink-exp (Prim 'not (list (Prim '< (list (shrink-exp first) (shrink-exp second))))))]
     [(Prim '<= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
                                         (Let t2 (shrink-exp second)
-                                             (Prim 'and (list (Prim 'not (list (Prim 'eq? (list (Var t1) (Var t2)))))
-                                                   (Prim 'not (list (Prim '< (list (Var t1) (Var t2))))))))))]
-    [(Prim 'or `(,first ,second)) (Prim 'and (list (Prim 'not (list (shrink-exp first))) (Prim 'not (list (shrink-exp second)))))]
+                                             (If (Prim 'eq? (list (Var t1) (Var t2))) (Bool #t)
+                                                 (Prim '< (list (Var t1) (Var t2)))))))]
     [(Prim op es) (Prim op (map shrink-exp es))]
     [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
@@ -132,6 +137,7 @@
       [(Var x)
        (Var (match-alist x symtab))]
       [(Int n) (Int n)]
+      [(Bool bool) (Bool bool)]
       [(Let x e body)
       (let ([y (gensym x)])
         (Let y ((uniquify-exp symtab) e) ((uniquify-exp (cons `(,x . ,y) symtab)) body)))]
@@ -157,6 +163,7 @@
   (match e
       [(Var x) (values (Var x) '())]
       [(Int n) (values (Int n) '())]
+      [(Bool bool) (values (Bool bool) '())]
       [(Let x e body)
        (let [(tmp (gensym "tmp"))]
          (begin (define-values (e-val e-alist) (rco-atom e))
@@ -176,6 +183,7 @@
   (match e
       [(Var x) (Var x)]
       [(Int n) (Int n)]
+      [(Bool bool) (Bool bool)]
       [(Let x e body)
        (begin (define e-val (rco-exp e))
               (Let x e-val (rco-exp body)))]
@@ -201,17 +209,31 @@
   (match exp
     [(Return (Int n)) (Seq (Assign var (Int n)) tail)]
     [(Return (Var x)) (Seq (Assign var (Var x)) tail)]
+    [(Return (Bool bool)) (Seq (Assign var (Bool bool)) tail)]
     [(Return (Prim op es)) (Seq (Assign var (Prim op es)) tail)]
     [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]))
 
 (define (explicate-assign exp var tail cgraph)
-  (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
-         (values (do-assignment exp-tail var tail) exp-vars exp-graph)))
+  (match exp
+    [(If pred then else)
+     (let ([then-block (gensym "block")] [else-block (gensym "block")] [tail-block (gensym "block")])
+       (begin (define-values (then-exp then-vars then-graph) (explicate-assign then var (Goto tail-block)  cgraph))
+              (define-values (else-exp else-vars else-graph) (explicate-assign else var (Goto tail-block)  then-graph))
+              (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-graph))
+              (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
+                                                                                                                    (cons `(,else-block . ,else-exp) (cons `(,tail-block . ,tail) pred-cgraph))))))]
+    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
+                             (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
+                             (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
+    [x (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
+         (values (do-assignment exp-tail var tail) exp-vars exp-graph))
+  ]))
 
 (define (explicate-pred e true-lbl false-lbl cgraph)
   (match e
     [(Bool bool) (values (IfStmt (Prim 'eq? (list (Bool bool) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
     [(Var x) (values (IfStmt (Prim 'eq? (list (Var x) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
+    [(Prim 'not (list var)) (values (IfStmt (Prim 'eq? (list var (Bool #f))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
     [(Prim cmp es) (values (IfStmt (Prim cmp es) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
     [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-lbl false-lbl cgraph))
                              (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
@@ -227,8 +249,9 @@
 
 (define (explicate-tail e cgraph)
   (match e
-    [(Var x) (values (Return (Var x)) '() cgraph)]
+      [(Var x) (values (Return (Var x)) '() cgraph)]
       [(Int n) (values (Return (Int n)) '() cgraph)]
+      [(Bool bool) (values (Return (Bool bool)) '() cgraph)]
       [(Let x e body)
        (begin (define-values (exp-body body-vars body-graph) (explicate-tail body cgraph))
          (define-values (tail vars newgraph) (explicate-assign e (Var x) exp-body body-graph))
@@ -257,13 +280,14 @@
      [(Int x) (Imm x)]
      [(Bool #t) (Imm 1)]
      [(Bool #f) (Imm 0)]))
-        
+
 (define (slct-stmt tail)
   (match tail
     [(Assign (Var x) exp)
      (match exp
        [(Int n) (list (Instr 'movq (list (Imm n) (Var x))))]
        [(Var y) (list (Instr 'movq (list (Var y) (Var x))))]
+       [(Bool bool) (list (Instr 'movq (list (slct-atom (Bool bool)) (Var x))))]
        [(Prim 'read es) (list (Callq 'read_int) (Instr 'movq (list (Reg 'rax) (Var x))))]
        [(Prim '- (list y)) #:when (eq? (Var x) y) (list (Instr 'negq (list (Var x))))]
        [(Prim '- (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
@@ -271,14 +295,15 @@
        [(Prim '+ (list y v)) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
        [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))]
        [(Prim 'not (list y)) #:when (eq? (Var x) y) (list (Instr 'xorq (list (Imm 1) y)))]
-       [(Prim 'not (list y)) (list (Instr 'movq (list y (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
-       [(Prim 'eq (list y z)) (list (Instr 'cmpq (list y z)) (Instr 'sete (list (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))])]))
+       [(Prim 'not (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
+       [(Prim 'eq? (list y z)) (list (Instr 'cmpq (list (slct-atom y) (slct-atom z))) (Instr 'set (list 'e (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
+       [(Prim '< (list y z)) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))])]))
 
 
 (define (slct-tail e)
   (match e
     [(Seq s t) (append (slct-stmt s) (slct-tail t))]
-    [(Goto label) (Jmp label)]
+    [(Goto label) (list (Jmp label))]
     [(IfStmt (Prim 'eq? (list exp1 exp2)) (Goto l1) (Goto l2))
      (list (Instr 'cmpq (list (slct-atom exp1) (slct-atom exp2))) (JmpIf 'e l1) (Jmp l2))]
     [(IfStmt (Prim '< (list exp1 exp2)) (Goto l1) (Goto l2))
@@ -556,4 +581,4 @@
                                        (let [(conclusion (make-conclusion stack-size used-regs))]
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
-(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions explicate-control remove-complex-opera* uniquify type-check-R2 parse-program (lambda (x) `(program () ,x))))
+(define test-compile (compose patch-instructions allocate-registers build-interference uncover-live select-instructions explicate-control remove-complex-opera* uniquify type-check-R2 parse-program (lambda (x) `(program () ,x))))
