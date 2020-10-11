@@ -216,12 +216,11 @@
 (define (explicate-assign exp var tail cgraph)
   (match exp
     [(If pred then else)
-     (let ([then-block (gensym "block")] [else-block (gensym "block")] [tail-block (gensym "block")])
+     (let ([tail-block (gensym "block")])
        (begin (define-values (then-exp then-vars then-graph) (explicate-assign then var (Goto tail-block)  cgraph))
               (define-values (else-exp else-vars else-graph) (explicate-assign else var (Goto tail-block)  then-graph))
-              (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-graph))
-              (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
-                                                                                                                    (cons `(,else-block . ,else-exp) (cons `(,tail-block . ,tail) pred-cgraph))))))]
+              (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-graph))
+              (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,tail-block . ,tail) pred-cgraph))))]
     [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
                              (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
                              (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
@@ -229,20 +228,24 @@
          (values (do-assignment exp-tail var tail) exp-vars exp-graph))
   ]))
 
-(define (explicate-pred e true-lbl false-lbl cgraph)
+(define (explicate-pred e true-blk false-blk cgraph)
   (match e
-    [(Bool bool) (values (IfStmt (Prim 'eq? (list (Bool bool) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
-    [(Var x) (values (IfStmt (Prim 'eq? (list (Var x) (Bool #t))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
-    [(Prim 'not (list var)) (values (IfStmt (Prim 'eq? (list var (Bool #f))) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
-    [(Prim cmp es) (values (IfStmt (Prim cmp es) (Goto true-lbl) (Goto false-lbl)) '() cgraph)]
-    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-lbl false-lbl cgraph))
+    [(Bool #t) (values true-blk '() cgraph)]
+    [(Bool #f) (values false-blk '() cgraph)]
+    [(Var x) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
+     (values (IfStmt (Prim 'eq? (list (Var x) (Bool #t))) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
+                                                                                                                    (cons `(,else-lbl . ,false-blk) cgraph))))]
+    [(Prim 'not (list var)) (begin (define-values (result result-vars result-cgraph) (explicate-pred var false-blk true-blk cgraph))
+                                   (values result result-vars result-cgraph))]
+    [(Prim cmp es) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
+     (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
+                                                                                (cons `(,else-lbl . ,false-blk) cgraph))))]
+    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-blk false-blk cgraph))
                              (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
-    [(If pred then else) (let ([then-block (gensym "block")] [else-block (gensym "block")])
-                           (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-lbl false-lbl cgraph))
-                                  (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-lbl false-lbl then-cgraph))
-                                  (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-cgraph))
-                                  (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
-                                                                                                                    (cons `(,else-block . ,else-exp) pred-cgraph)))))]
+    [(If pred then else) (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-blk false-blk cgraph))
+                                  (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-blk false-blk then-cgraph))
+                                  (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
+                                  (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
     ))
                                   
     
@@ -259,12 +262,10 @@
       [(Prim op es)
        (values (Return (Prim op es)) '() cgraph)]
       [(If pred then else)
-        (let ([then-block (gensym "block")] [else-block (gensym "block")])
           (begin (define-values (then-exp then-vars then-cgraph) (explicate-tail then cgraph))
                  (define-values (else-exp else-vars else-cgraph) (explicate-tail else then-cgraph))
-                 (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-block else-block else-cgraph))
-                 (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,then-block . ,then-exp)
-                                                                                                                    (cons `(,else-block . ,else-exp) pred-cgraph)))))]
+                 (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
+                 (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
       ))
 
 ;; explicate-control : R2 -> C1
@@ -581,4 +582,5 @@
                                        (let [(conclusion (make-conclusion stack-size used-regs))]
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
+
 (define test-compile (compose patch-instructions allocate-registers build-interference uncover-live select-instructions explicate-control remove-complex-opera* uniquify type-check-R2 parse-program (lambda (x) `(program () ,x))))
