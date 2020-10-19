@@ -64,38 +64,62 @@
 (define (type-check-exp env e)
   (match e
     [(Var x)
-     (match-alist x env)]
-    [(Int n) 'Integer]
-    [(Bool bool) 'Boolean]
+     (define type (match-alist x env))
+     (values (HasType (Var x) type) type)]
+    [(Void) (values (HasType (Void)'Void)'Void)]
+    [(Prim 'vector es)
+     (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+     (let ([t `(Vector ,@t*)]) (values (HasType (Prim 'vector e*) t) t))]
+    [(Prim 'vector-ref (list e (Int i)))
+     (define-values (e^ t) (type-check-exp env e))
+     (match t
+       [`(Vector ,ts ...)
+        (unless (and (exact-nonnegative-integer? i) (< i (length ts)))
+          (error 'type-check-exp "invalid index ~a" i))
+        (let ([t (list-ref ts i)])
+          (values
+           (HasType (Prim 'vector-ref (list e^ (HasType (Int i) 'Integer))) t) t))]
+       [else (error "expected a vector in vector-ref, not" t)])]
+    [(Int n) (values (HasType (Int n) 'Integer) 'Integer)]
+    [(Bool bool) (values (HasType (Bool bool) 'Boolean) 'Boolean)]
     [(Let x e body)
-     (type-check-exp (cons `(,x . ,(type-check-exp env e)) env) body)]
+     (define-values (var-exp var-type) (type-check-exp env e))
+     (define-values (body-exp body-type) (type-check-exp (cons `(,x . ,(type-check-exp env e)) env) body))
+     (values (HasType (Let x var-exp body-exp) body-type) body-type)]
     [(Prim 'read es)
-     'Integer]
-    [(Prim op es) #:when (index-of '(- +) op) (if (andmap (lambda (e) (eq? 'Integer (type-check-exp env e))) es)
-                                                  'Integer
-                                                  (error (format "Arthimetic operators only operate on integers (got ~a) with env: ~a" (map (lambda (x) (type-check-exp env x)) es) env)))]
-    [(Prim op es) #:when (index-of '(and or not) op) (if (andmap (lambda (e) (eq? 'Boolean (type-check-exp env e))) es)
-                                                         'Boolean
+     (values (HasType (Prim 'read es) 'Integer) 'Integer)]
+    [(Prim op es) #:when (index-of '(- + < <= > >=) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+                                                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
+                                                  (values (HasType (Prim op e*) 'Integer) 'Integer)
+                                                  (error (format "Arthimetic/Comparison operators only operate on integers (got ~a) with env: ~a" t* env)))]
+    [(Prim op es) #:when (index-of '(and or not) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+                                                         (if (andmap (lambda (t) (eq? 'Boolean t)) t*)
+                                                         (values (HasType (Prim op e*) 'Boolean) 'Boolean)
                                                          (error "Logical operators only operate on booleans"))]
-    [(Prim cmp es) #:when (index-of '(eq? < <= > >=) cmp) (let ([t1 (type-check-exp env (car es))] [t2 (type-check-exp env (cadr es))])
+    [(Prim cmp es) #:when (index-of '(eq?) cmp) (define-values (e1 t1) (type-check-exp env (car es)))
+                   (define-values (e2 t2) (type-check-exp env (cadr es)))
                       (if (eq? t1 t2)
-                          'Boolean
-                          (error "comparison between a boolean and integer not supported")))]
-    [(If cond exp else) (let ([t1 (type-check-exp env exp)] [t2 (type-check-exp env else)])
-                          (if (eq? t1 t2)
-                              (if (eq? 'Boolean (type-check-exp env cond))
-                                  t1
+                          (values (HasType (Prim cmp `(,e1 ,e2)) 'Boolean) 'Boolean)
+                          (error "comparison between different types not supported"))]
+    [(If cond exp else) (define-values (exp-e exp-t) (type-check-exp env exp))
+                        (define-values (else-e else-t) (type-check-exp env else))
+                        (define-values (cond-e cond-t) (type-check-exp env cond))
+                         (if (eq? exp-t else-t)
+                              (if (eq? 'Boolean cond-t)
+                                  (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
                                   (error "If condition must be a Boolean"))
-                              (error "Both if cases must be the same type")))]
+                              (error "Both if cases must be the same type"))]
+    
     ))
 
 
 (define (type-check-R2 p)
   (match p
     [(Program info e)
-     (if (eq? 'Integer (type-check-exp '() e))
-     (Program info e)
-     (error 'type-check-R2 "R2 programs should type check to an integer"))]))
+     (begin (define-values (exp type) (type-check-exp '() e))
+     (if (eq? 'Integer type)
+     (Program info exp)
+     (error 'type-check-R2 "R3 programs should type check to an integer")))]))
 
 (define (shrink-exp e)
   (match e
