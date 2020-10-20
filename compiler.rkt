@@ -90,7 +90,7 @@
              (error "Vector set got a non vector")
              (if (not (equal? (list-ref vect-type (add1 i)) val-type))
                  (error (format "Changing vector types is not supported got ~a ~a" (list-ref vect-type (add1 i)) val-type))
-                 (values (HasType (Prim 'vector-set (list vect-exp i-exp val-exp)) vect-type) vect-type))))]
+                 (values (HasType (Prim 'vector-set! (list vect-exp i-exp val-exp)) 'Void) 'Void))))]
     [(Int n) (values (HasType (Int n) 'Integer) 'Integer)]
     [(Bool bool) (values (HasType (Bool bool) 'Boolean) 'Boolean)]
     [(Let x e body)
@@ -306,21 +306,19 @@
 ;;Assigns a variable to whatever an expression would return then adds the tail on
 (define (do-assignment exp var tail)
   (match exp
-    [(Return (Int n)) (Seq (Assign var (Int n)) tail)]
-    [(Return (Var x)) (Seq (Assign var (Var x)) tail)]
-    [(Return (Bool bool)) (Seq (Assign var (Bool bool)) tail)]
-    [(Return (Prim op es)) (Seq (Assign var (Prim op es)) tail)]
-    [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]))
+    [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]
+    [(Return (HasType x t)) (Seq (Assign var (HasType x t)) tail)]
+    ))
 
 (define (explicate-assign exp var tail cgraph)
   (match exp
-    [(If pred then else)
+    [(HasType (If pred then else) t)
      (let ([tail-block (gensym "block")])
        (begin (define-values (then-exp then-vars then-graph) (explicate-assign then var (Goto tail-block)  cgraph))
               (define-values (else-exp else-vars else-graph) (explicate-assign else var (Goto tail-block)  then-graph))
               (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-graph))
               (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,tail-block . ,tail) pred-cgraph))))]
-    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
+    [(HasType (Let x exp body) t) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
                              (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
                              (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
     [x (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
@@ -329,19 +327,19 @@
 
 (define (explicate-pred e true-blk false-blk cgraph)
   (match e
-    [(Bool #t) (values true-blk '() cgraph)]
-    [(Bool #f) (values false-blk '() cgraph)]
-    [(Var x) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
-               (values (IfStmt (Prim 'eq? (list (Var x) (Bool #t))) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
+    [(HasType (Bool #t) t) (values true-blk '() cgraph)]
+    [(HasType (Bool #f) t) (values false-blk '() cgraph)]
+    [(HasType (Var x) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
+               (values (IfStmt (Prim 'eq? (list (HasType (Var x) t) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
                                                                                                                (cons `(,else-lbl . ,false-blk) cgraph))))]
-    [(Prim 'not (list var)) (begin (define-values (result result-vars result-cgraph) (explicate-pred var false-blk true-blk cgraph))
+    [(HasType (Prim 'not (list var)) t) (begin (define-values (result result-vars result-cgraph) (explicate-pred var false-blk true-blk cgraph))
                                    (values result result-vars result-cgraph))]
-    [(Prim cmp es) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
+    [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
                      (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
                                                                                               (cons `(,else-lbl . ,false-blk) cgraph))))]
-    [(Let x exp body) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-blk false-blk cgraph))
+    [(HasType (Let x exp body) t) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-blk false-blk cgraph))
                              (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
-    [(If pred then else) (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-blk false-blk cgraph))
+    [(HasType (If pred then else) t) (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-blk false-blk cgraph))
                                 (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-blk false-blk then-cgraph))
                                 (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
                                 (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
@@ -351,20 +349,27 @@
 
 (define (explicate-tail e cgraph)
   (match e
-    [(Var x) (values (Return (Var x)) '() cgraph)]
-    [(Int n) (values (Return (Int n)) '() cgraph)]
-    [(Bool bool) (values (Return (Bool bool)) '() cgraph)]
-    [(Let x e body)
+    [(HasType (Var x) t) (values (Return (HasType (Var x) t)) '() cgraph)]
+    [(HasType (Int n) t) (values (Return (HasType (Int n) t)) '() cgraph)]
+    [(HasType (Bool bool) t) (values (Return (HasType (Bool bool) t)) '() cgraph)]
+    [(HasType (Void) t) (values (Return (HasType (Void) t)) '() cgraph)]
+    [(HasType (Let x e body) t)
      (begin (define-values (exp-body body-vars body-graph) (explicate-tail body cgraph))
             (define-values (tail vars newgraph) (explicate-assign e (Var x) exp-body body-graph))
             (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
-    [(Prim op es)
-     (values (Return (Prim op es)) '() cgraph)]
-    [(If pred then else)
+    [(HasType (Prim op es) t)
+     (values (Return (HasType (Prim op es) t)) '() cgraph)]
+    [(HasType (If pred then else) t)
      (begin (define-values (then-exp then-vars then-cgraph) (explicate-tail then cgraph))
             (define-values (else-exp else-vars else-cgraph) (explicate-tail else then-cgraph))
             (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
             (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
+    [(HasType (Collect bytes) t)
+     (values (Return (HasType (Collect bytes) t)) '() cgraph)]
+    [(HasType (GlobalValue name) t)
+     (values (Return (HasType (GlobalValue name) t)) '() cgraph)]
+    [(HasType (Allocate n type) t)
+     (values (Return (HasType (Allocate n type) t)) '() cgraph)]
     ))
 
 ;; explicate-control : R2 -> C1
@@ -373,6 +378,19 @@
     [(Program info e)
      (begin (define-values (tail vars graph) (explicate-tail e '())) (Program `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]
     ))
+
+(define (uncover-block tail)
+  (match tail
+    [(Seq (Assign var (HasType x type)) t)
+     (cons `(,var . ,type) (uncover-block t))]
+    [x '()]))
+
+(define (uncover-locals p)
+  (match p
+    [(Program info (CFG B-list))
+     (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) B-list))])
+     (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
+     
 
 (define (slct-atom e)
   (match e
@@ -682,5 +700,5 @@
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
 
-(define test-compile (compose remove-complex-opera* expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
+(define test-compile (compose uncover-locals explicate-control remove-complex-opera* expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
 (define test-program '(let([v (vector (vector 44))])(let([x (let([w (vector 42)]) (let([_ (vector-set! v 0 w)])0))])(+ x (vector-ref (vector-ref v 0) 0)))))
