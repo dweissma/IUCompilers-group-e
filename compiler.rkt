@@ -392,30 +392,46 @@
      (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
      
 
+
+
+(define (calculate-tag types t-len)
+  (if (empty? types) (add1 (* 2 t-len))
+      (bitwise-ior (arithmetic-shift (if (list? (car types)) 1 0) (+ (length types) 6))
+                   (calculate-tag (cdr types) t-len))))
+
 (define (slct-atom e)
   (match e
     [(Var x) (Var x)]
     [(Int x) (Imm x)]
     [(Bool #t) (Imm 1)]
-    [(Bool #f) (Imm 0)]))
+    [(Bool #f) (Imm 0)]
+    [(Void) (Imm 0)]
+    [(HasType x t) (slct-atom x)]))
 
 (define (slct-stmt tail)
   (match tail
-    [(Assign (Var x) exp)
+    [(Assign (Var x) (HasType exp t))
      (match exp
        [(Int n) (list (Instr 'movq (list (Imm n) (Var x))))]
        [(Var y) (list (Instr 'movq (list (Var y) (Var x))))]
        [(Bool bool) (list (Instr 'movq (list (slct-atom (Bool bool)) (Var x))))]
+       [(Void) (list (Instr 'movq (list (Imm 0) (Var x))))]
        [(Prim 'read es) (list (Callq 'read_int) (Instr 'movq (list (Reg 'rax) (Var x))))]
-       [(Prim '- (list y)) #:when (eq? (Var x) y) (list (Instr 'negq (list (Var x))))]
-       [(Prim '- (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
-       [(Prim '+ (list y v)) #:when (eq? (Var x) y) (list (Instr 'addq (list (slct-atom v) (Var x))))]
-       [(Prim '+ (list y v)) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
-       [(Prim '+ (list y v)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))]
-       [(Prim 'not (list y)) #:when (eq? (Var x) y) (list (Instr 'xorq (list (Imm 1) y)))]
-       [(Prim 'not (list y)) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
-       [(Prim 'eq? (list y z)) (list (Instr 'cmpq (list (slct-atom y) (slct-atom z))) (Instr 'set (list 'e (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
-       [(Prim '< (list y z)) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))])]))
+       [(Prim '- (list (HasType y t))) #:when (eq? (Var x) y) (list (Instr 'negq (list (Var x))))]
+       [(Prim '- (list (HasType y t))) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'negq (list (Var x))))]
+       [(Prim '+ (list (HasType y t1) (HasType v t2))) #:when (eq? (Var x) y) (list (Instr 'addq (list (slct-atom v) (Var x))))]
+       [(Prim '+ (list (HasType y t1) (HasType v t2))) #:when (eq? (Var x) v) (list (Instr 'addq (list (slct-atom y) (Var x))))]
+       [(Prim '+ (list (HasType y t1) (HasType v t2))) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'addq (list (slct-atom v) (Var x))))]
+       [(Prim 'not (list (HasType y t))) #:when (eq? (Var x) y) (list (Instr 'xorq (list (Imm 1) y)))]
+       [(Prim 'not (list (HasType y t))) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
+       [(Prim 'eq? (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom y) (slct-atom z))) (Instr 'set (list 'e (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
+       [(Prim '< (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
+       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* -8 (add1 n))) (Var x))))]
+       [(Prim 'vector-set! (list (HasType vect t1) (HasType (Int n) t2) (HasType arg t3))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 (* 8 (add1 n))))) (Instr 'movq (list (Imm 0) (Var x))))]
+       [(Allocate len types) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)))])
+                               (list (Instr 'movq (list (Global 'free_ptr) (Var x))) (Instr 'addq (list (Imm (* 8 (add1 len))) (Global 'free_ptr))) (Instr 'movq (list (Var x) (Reg 'r11))) (Instr 'movq (list (Imm tag) (Deref 'r11 0)))))]
+       [(Collect bytes) (list (Instr 'movq (list (Reg 'r15) (Reg 'rdi))) (Instr 'movq (list (Imm bytes) (Reg 'rsi))) (Callq 'collect))]
+       [(GlobalValue tag) (list (Instr 'movq (list (Global tag) (Var x))))])]))
 
 
 (define (slct-tail e)
@@ -426,19 +442,20 @@
      (list (Instr 'cmpq (list (slct-atom exp1) (slct-atom exp2))) (JmpIf 'e l1) (Jmp l2))]
     [(IfStmt (Prim '< (list exp1 exp2)) (Goto l1) (Goto l2))
      (list (Instr 'cmpq (list (slct-atom exp2) (slct-atom exp1))) (JmpIf 'l l1) (Jmp l2))]
-    [(Return r)
+    [(Return (HasType r t))
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp 'conclusion))]
        [(Var y) (list (Instr 'movq (list (Var y) (Reg 'rax))) (Jmp 'conclusion))]
        [(Prim 'read es) (list (Callq 'read_int)  (Jmp 'conclusion))]
-       [(Prim '- (list y)) (list
+       [(Prim '- (list (HasType y t))) (list
                             (Instr 'movq (list (slct-atom y) (Reg 'rax)))
                             (Instr 'negq (list (Reg 'rax)))
                             (Jmp 'conclusion))]
-       [(Prim '+ (list y v)) (list
+       [(Prim '+ (list (HasType y t1) (HasType v t2))) (list
                               (Instr 'movq (list (slct-atom y) (Reg 'rax)))
                               (Instr 'addq (list (slct-atom v) (Reg 'rax)))
-                              (Jmp 'conclusion))])]))
+                              (Jmp 'conclusion))]
+       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* -8 (add1 n))) (Reg 'rax))) (Jmp 'conclusion))])]))
 
 (define (select-instructions p)
   (match p
@@ -700,5 +717,5 @@
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
 
-(define test-compile (compose uncover-locals explicate-control remove-complex-opera* expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
+(define test-compile (compose select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
 (define test-program '(let([v (vector (vector 44))])(let([x (let([w (vector 42)]) (let([_ (vector-set! v 0 w)])0))])(+ x (vector-ref (vector-ref v 0) 0)))))
