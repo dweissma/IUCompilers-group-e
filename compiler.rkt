@@ -80,11 +80,22 @@
           (values
            (HasType (Prim 'vector-ref (list e^ (HasType (Int i) 'Integer))) t) t))]
        [else (error "expected a vector in vector-ref, not" t)])]
+    [(Prim 'vector-set! (list vect (Int i) val))
+     (define-values (vect-exp vect-type) (type-check-exp env vect))
+     (define-values (i-exp i-type) (type-check-exp env (Int i)))
+     (define-values (val-exp val-type) (type-check-exp env val))
+     (if (not (eq? i-type 'Integer))
+         (error "The type of index for vector-set! must be an Integer")
+         (if (not (eq? (car vect-type) 'Vector))
+             (error "Vector set got a non vector")
+             (if (not (equal? (list-ref vect-type (add1 i)) val-type))
+                 (error (format "Changing vector types is not supported got ~a ~a" (list-ref vect-type (add1 i)) val-type))
+                 (values (HasType (Prim 'vector-set (list vect-exp i-exp val-exp)) vect-type) vect-type))))]
     [(Int n) (values (HasType (Int n) 'Integer) 'Integer)]
     [(Bool bool) (values (HasType (Bool bool) 'Boolean) 'Boolean)]
     [(Let x e body)
      (define-values (var-exp var-type) (type-check-exp env e))
-     (define-values (body-exp body-type) (type-check-exp (cons `(,x . ,(type-check-exp env e)) env) body))
+     (define-values (body-exp body-type) (type-check-exp (cons `(,x . ,var-type) env) body))
      (values (HasType (Let x var-exp body-exp) body-type) body-type)]
     [(Prim 'read es)
      (values (HasType (Prim 'read es) 'Integer) 'Integer)]
@@ -113,7 +124,7 @@
     ))
 
 
-(define (type-check-R2 p)
+(define (type-check p)
   (match p
     [(Program info e)
      (begin (define-values (exp type) (type-check-exp '() e))
@@ -123,24 +134,26 @@
 
 (define (shrink-exp e)
   (match e
-    [(Prim '- `(,first ,second)) (Prim '+ `(,(shrink-exp first) ,(Prim '- (list (shrink-exp second)))))]
-    [(Prim 'and `(,first ,second)) (let ([t1 (gensym 'tmp)])
+    [(HasType exp type)
+     (HasType (shrink-exp exp) type)]
+    [(Prim '- `(,first ,second)) (Prim '+ `(,(shrink-exp first) ,(HasType (Prim '- (list (shrink-exp second))) 'Integer)))]
+    [(Prim 'and `(,first ,second)) (let ([t1 (gensym 'tmp)] [type (match first [(HasType exp t) t])])
                                      (Let t1 (shrink-exp first)
-                                          (If (Var t1) (shrink-exp second)  (Bool #f))))]
-    [(Prim 'or `(,first ,second)) (let ([t1 (gensym 'tmp)])
+                                          (HasType (If (Var t1) (shrink-exp second) (Bool #f)) type)))]
+    [(Prim 'or `(,first ,second)) (let ([t1 (gensym 'tmp)] [type (match first [(HasType exp t) t])])
                                      (Let t1 (shrink-exp first)
-                                          (If (Var t1) (Bool #t) (shrink-exp second))))]
+                                          (HasType (If (Var t1) (Bool #t) (shrink-exp second)) type)))]
     [(Prim '> `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
-                                        (Let t2 (shrink-exp second)
-                                             (If (Prim 'eq? (list (Var t1) (Var t2))) (Bool #f)
-                                                 (Prim 'not (list (Prim '< (list (Var t1) (Var t2)))))))))]
-    [(Prim '>= `(,first ,second)) (shrink-exp (Prim 'not (list (Prim '< (list (shrink-exp first) (shrink-exp second))))))]
+                                        (HasType (Let t2 (shrink-exp second)
+                                             (HasType (If (HasType (Prim 'eq? (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean) (HasType (Bool #f) 'Boolean)
+                                                 (HasType (Prim 'not (list (HasType (Prim '< (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean)) 'Boolean)) 'Boolean)) 'Boolean))))]
+    [(Prim '>= `(,first ,second)) (Prim 'not (list (HasType (Prim '< (list (shrink-exp first) (shrink-exp second))) 'Boolean)))]
     [(Prim '<= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
-                                        (Let t2 (shrink-exp second)
-                                             (If (Prim 'eq? (list (Var t1) (Var t2))) (Bool #t)
-                                                 (Prim '< (list (Var t1) (Var t2)))))))]
+                                        (HasType (Let t2 (shrink-exp second)
+                                             (HasType (If (HasType (Prim 'eq? (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean) (HasType (Bool #t) 'Boolean)
+                                                 (HasType (Prim '< (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean)) 'Boolean)) 'Boolean)))]
     [(Prim op es) (Prim op (map shrink-exp es))]
     [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
@@ -160,6 +173,8 @@
     (match e
       [(Var x)
        (Var (match-alist x symtab))]
+      [(HasType exp type)
+       (HasType ((uniquify-exp symtab) exp) type)] 
       [(Int n) (Int n)]
       [(Bool bool) (Bool bool)]
       [(Let x e body)
@@ -176,6 +191,53 @@
     [(Program info e)
      (Program info ((uniquify-exp '()) e))]
     ))
+
+(define (generate-n-vars n)
+  (if (zero? n) '()
+  (cons (gensym 'tmp) (generate-n-vars (sub1 n)))))
+
+(define (expand-into-lets vars exps base base-type)
+  (if (empty? exps) base
+      (HasType (Let (car vars) (car exps) (expand-into-lets (cdr vars) (cdr exps) base base-type)) base-type)))
+
+(define (duplicate x n)
+  (if (zero? n) '()
+      (cons x (duplicate x (sub1 n)))))
+
+(define (make-vector-set-exps vect accum vars types)
+  (if (empty? vars) '()
+      (cons (HasType (Prim 'vector-set! (list vect (HasType (Int accum) 'Integer) (HasType (Var (car vars)) (car types)))) 'Void)
+            (make-vector-set-exps vect (add1 accum) (cdr vars) (cdr types)))))
+
+
+(define (do-allocate bytes base type)
+  (HasType (Let '_ (HasType (If (HasType (Prim '< (list (HasType (Prim '+ (list (HasType (GlobalValue 'free_ptr) 'Integer) (HasType (Int bytes) 'Integer))) 'Integer) (HasType (GlobalValue 'fromspace_end) 'Integer))) 'Boolean)
+                                (HasType (Void) 'Void)
+                                (HasType (Collect bytes) 'Void)) 'Void)
+                base) type))
+  
+
+(define (bulk-vector-set vect vars types)
+  (expand-into-lets (duplicate '_ (length vars)) (make-vector-set-exps vect 0 vars (cdr types)) vect types))
+  
+
+(define (expose-exp e)
+  (match e
+    [(HasType (Prim 'vector es) type)
+     (let* ([len (length es)] [bytes (* 8 len)] [vect (gensym 'vec)] [vars (generate-n-vars len)])
+       (expand-into-lets vars (for/list ([e es]) (expose-exp e)) (do-allocate bytes (bulk-vector-set (HasType (Var vect) type) vars type) type) type))]
+    [(Prim op es)
+     (Prim op (for/list ([e es]) (expose-exp e)))]
+    [(Let x e body)
+      (Let x (expose-exp e) (expose-exp body))]
+    [(If cond exp else) (If (expose-exp cond) (expose-exp exp) (expose-exp else))]
+    [(HasType exp type) (expose-exp exp)]
+    [x x]))
+    
+(define (expose-allocation p)
+  (match p
+    [(Program info e)
+     (Program info (expose-exp e))]))
 
 ;Expands an alist into let expression binding each variable to its associated expression
 (define (expand-alist alist base)
@@ -607,4 +669,4 @@
                                          (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                          ))))]))
 
-(define test-compile (compose patch-instructions allocate-registers build-interference uncover-live select-instructions explicate-control remove-complex-opera* uniquify type-check-R2 parse-program (lambda (x) `(program () ,x))))
+(define test-compile (compose expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
