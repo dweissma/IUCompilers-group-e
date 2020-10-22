@@ -99,10 +99,14 @@
      (values (HasType (Let x var-exp body-exp) body-type) body-type)]
     [(Prim 'read es)
      (values (HasType (Prim 'read es) 'Integer) 'Integer)]
-    [(Prim op es) #:when (index-of '(- + < <= > >=) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+    [(Prim op es) #:when (index-of '(- +) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
                   (if (andmap (lambda (t) (eq? t 'Integer)) t*)
                       (values (HasType (Prim op e*) 'Integer) 'Integer)
-                      (error (format "Arthimetic/Comparison operators only operate on integers (got ~a) with env: ~a" t* env)))]
+                      (error (format "Arthimetic operators only operate on integers (got ~a) with env: ~a" t* env)))]
+    [(Prim op es) #:when (index-of '(< <= > >=) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
+                      (values (HasType (Prim op e*) 'Boolean) 'Boolean)
+                      (error (format "Comparison operators only operate on integers (got ~a) with env: ~a" t* env)))]
     [(Prim op es) #:when (index-of '(and or not) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
                   (if (andmap (lambda (t) (eq? 'Boolean t)) t*)
                       (values (HasType (Prim op e*) 'Boolean) 'Boolean)
@@ -120,7 +124,8 @@
                                 (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
                                 (error "If condition must be a Boolean"))
                             (error "Both if cases must be the same type"))]
-    
+   [(HasType exp type)
+    (values (HasType exp type) type)]
     ))
 
 
@@ -139,15 +144,15 @@
     [(Prim '- `(,first ,second)) (Prim '+ `(,(shrink-exp first) ,(HasType (Prim '- (list (shrink-exp second))) 'Integer)))]
     [(Prim 'and `(,first ,second)) (let ([t1 (gensym 'tmp)] [type (match first [(HasType exp t) t])])
                                      (Let t1 (shrink-exp first)
-                                          (HasType (If (Var t1) (shrink-exp second) (Bool #f)) type)))]
+                                          (HasType (If (HasType (Var t1) type) (shrink-exp second) (HasType (Bool #f) 'Boolean)) 'Boolean)))]
     [(Prim 'or `(,first ,second)) (let ([t1 (gensym 'tmp)] [type (match first [(HasType exp t) t])])
                                     (Let t1 (shrink-exp first)
-                                         (HasType (If (Var t1) (Bool #t) (shrink-exp second)) type)))]
+                                         (HasType (If (HasType (Var t1) 'Boolean) (HasType (Bool #t) 'Boolean) (shrink-exp second)) 'Boolean)))]
     [(Prim '> `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                    (Let t1 (shrink-exp first)
                                         (HasType (Let t2 (shrink-exp second)
                                                       (HasType (If (HasType (Prim 'eq? (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean) (HasType (Bool #f) 'Boolean)
-                                                                   (HasType (Prim 'not (list (HasType (Prim '< (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean)) 'Boolean)) 'Boolean)) 'Boolean))))]
+                                                                   (HasType (Prim 'not (list (HasType (Prim '< (list (HasType (Var t1) 'Integer) (HasType (Var t2) 'Integer))) 'Boolean))) 'Boolean)) 'Boolean)) 'Boolean)))]
     [(Prim '>= `(,first ,second)) (Prim 'not (list (HasType (Prim '< (list (shrink-exp first) (shrink-exp second))) 'Boolean)))]
     [(Prim '<= `(,first ,second)) (let ([t1 (gensym 'tmp)] [t2 (gensym 'tmp)])
                                     (Let t1 (shrink-exp first)
@@ -319,8 +324,8 @@
               (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-graph))
               (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) (cons `(,tail-block . ,tail) pred-cgraph))))]
     [(HasType (Let x exp body) t) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
-                             (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
-                             (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
+                                         (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
+                                         (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
     [x (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
               (values (do-assignment exp-tail var tail) exp-vars exp-graph))
        ]))
@@ -330,19 +335,19 @@
     [(HasType (Bool #t) t) (values true-blk '() cgraph)]
     [(HasType (Bool #f) t) (values false-blk '() cgraph)]
     [(HasType (Var x) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
-               (values (IfStmt (Prim 'eq? (list (HasType (Var x) t) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
-                                                                                                               (cons `(,else-lbl . ,false-blk) cgraph))))]
+                           (values (IfStmt (Prim 'eq? (list (HasType (Var x) t) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
+                                                                                                                                                          (cons `(,else-lbl . ,false-blk) cgraph))))]
     [(HasType (Prim 'not (list var)) t) (begin (define-values (result result-vars result-cgraph) (explicate-pred var false-blk true-blk cgraph))
-                                   (values result result-vars result-cgraph))]
+                                               (values result result-vars result-cgraph))]
     [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
-                     (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
-                                                                                              (cons `(,else-lbl . ,false-blk) cgraph))))]
+                                 (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
+                                                                                                          (cons `(,else-lbl . ,false-blk) cgraph))))]
     [(HasType (Let x exp body) t) (begin (define-values (exp-body body-vars body-graph) (explicate-pred body true-blk false-blk cgraph))
-                             (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
+                                         (define-values (tail vars tail-graph) (explicate-assign exp (Var x) exp-body body-graph)) (values tail (cons (Var x) (remove-duplicates (append body-vars vars))) tail-graph))]
     [(HasType (If pred then else) t) (begin (define-values (then-exp then-vars then-cgraph) (explicate-pred then true-blk false-blk cgraph))
-                                (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-blk false-blk then-cgraph))
-                                (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
-                                (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
+                                            (define-values (else-exp else-vars else-cgraph) (explicate-pred else true-blk false-blk then-cgraph))
+                                            (define-values (pred-exp pred-vars pred-cgraph) (explicate-pred pred then-exp else-exp else-cgraph))
+                                            (values pred-exp (remove-duplicates (append then-vars else-vars pred-vars)) pred-cgraph))]
     ))
                                   
     
@@ -389,7 +394,7 @@
   (match p
     [(Program info (CFG B-list))
      (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) B-list))])
-     (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
+       (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
      
 
 
@@ -426,7 +431,7 @@
        [(Prim 'not (list (HasType y t))) (list (Instr 'movq (list (slct-atom y) (Var x))) (Instr 'xorq (list (Imm 1) (Var x))))]
        [(Prim 'eq? (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom y) (slct-atom z))) (Instr 'set (list 'e (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
        [(Prim '< (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
-       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* -8 (add1 n))) (Var x))))]
+       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* 8 (add1 n))) (Var x))))]
        [(Prim 'vector-set! (list (HasType vect t1) (HasType (Int n) t2) (HasType arg t3))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 (* 8 (add1 n))))) (Instr 'movq (list (Imm 0) (Var x))))]
        [(Allocate len types) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)))])
                                (list (Instr 'movq (list (Global 'free_ptr) (Var x))) (Instr 'addq (list (Imm (* 8 (add1 len))) (Global 'free_ptr))) (Instr 'movq (list (Var x) (Reg 'r11))) (Instr 'movq (list (Imm tag) (Deref 'r11 0)))))]
@@ -448,13 +453,13 @@
        [(Var y) (list (Instr 'movq (list (Var y) (Reg 'rax))) (Jmp 'conclusion))]
        [(Prim 'read es) (list (Callq 'read_int)  (Jmp 'conclusion))]
        [(Prim '- (list (HasType y t))) (list
-                            (Instr 'movq (list (slct-atom y) (Reg 'rax)))
-                            (Instr 'negq (list (Reg 'rax)))
-                            (Jmp 'conclusion))]
+                                        (Instr 'movq (list (slct-atom y) (Reg 'rax)))
+                                        (Instr 'negq (list (Reg 'rax)))
+                                        (Jmp 'conclusion))]
        [(Prim '+ (list (HasType y t1) (HasType v t2))) (list
-                              (Instr 'movq (list (slct-atom y) (Reg 'rax)))
-                              (Instr 'addq (list (slct-atom v) (Reg 'rax)))
-                              (Jmp 'conclusion))]
+                                                        (Instr 'movq (list (slct-atom y) (Reg 'rax)))
+                                                        (Instr 'addq (list (slct-atom v) (Reg 'rax)))
+                                                        (Jmp 'conclusion))]
        [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* -8 (add1 n))) (Reg 'rax))) (Jmp 'conclusion))])]))
 
 (define (select-instructions p)
@@ -515,13 +520,17 @@
                             'r8 'r9 'r10 'rbx
                             'r12 'r13 'r14 'rsp))
 
+(define reg-colors
+  '((rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6) (r11 . 7)
+              (rbx . 8) (r12 . 9) (r13 . 10) (r14 . 11)))
+
 (define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11)) ;Excludes rax since it won't be in the interference graph
 (define callee-registers '(r12 r13 r14 rbx rbp))
-
 (define instrs-with-writes '(addq movq xorq movzbq))
 
-(define (add-from-instr graph instr live-after)
+(define (add-from-instr graph instr live-after types)
   (match instr
+    [(Callq 'collect) (for ([x live-after]) (if (list? (match-alist (Var x) types)) (for ([y caller-registers]) (add-edge! graph x y)) (for ([y (append caller-registers callee-registers)]) (add-edge! graph x y))))]
     [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! graph x y)))]
     [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
     [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
@@ -536,18 +545,18 @@
     [else graph]))
 
 
-(define (add-block-to-graph graph instrs lives)
+(define (add-block-to-graph graph instrs lives locals)
   (cond [(empty? instrs) graph]
-        [else (begin (add-from-instr (add-block-to-graph graph (cdr instrs) (cdr lives)) (car instrs) (car lives)) graph)]))
+        [else (begin (add-from-instr (add-block-to-graph graph (cdr instrs) (cdr lives) locals) (car instrs) (car lives) locals) graph)]))
 
 (define (graph-from-blist B-list locals)
   (cond [(empty? B-list) (begin
                            (define g (unweighted-graph/undirected '()))
                            (for ([x (cdr all-registers)]) (add-vertex! g x))
-                           (for ([x locals]) (match x [(Var y) (add-vertex! g y)]))
+                           (for ([x locals]) (match x [`(,(Var y) . ,type) (add-vertex! g y)]))
                            g)]
         [else (match (car B-list)
-                [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)))])]))
+                [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)) locals)])]))
                                                                              
 
 (define (build-interference p)
@@ -559,10 +568,6 @@
   (match p
     [(Program info (CFG B-list))
      (match-alist 'interference-graph info)]))
-
-(define reg-colors
-  '((rcx . 0) (rdx . 1) (rsi . 2) (rdi . 3) (r8 . 4) (r9 . 5) (r10 . 6)
-              (rbx . 7) (r12 . 8) (r13 . 9) (r14 . 10)))
     
 
 (define (in-alist alist key)
@@ -594,28 +599,30 @@
 (define (round-stack-to-16 n)
   (if (zero? n) 16 (if (zero? (modulo n 16)) n (+ n 8))))
 
-(define (compute-stack-size homes)
+(define (compute-stack-size homes reg)
   (cond [(empty? homes) 0]
         [else (match (car homes)
-                [`(,var . ,(Deref reg loc)) (+ 8 (compute-stack-size (cdr homes)))]
-                [x (compute-stack-size (cdr homes))])]))
+                [`(,var . ,(Deref r loc)) #:when(eq? reg r) (max (* -1 loc) (compute-stack-size (cdr homes) reg))]
+                [x (compute-stack-size (cdr homes) reg)])]))
  
 (define (allocate-registers p)
   (match p
     [(Program info (CFG B-list))
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
-       (Program `((stack-size . ,(compute-stack-size homes)) (used-regs . ,(filter Reg? (map cdr homes)))) (CFG (map (lambda (x) (match x
-                                                                                                                                   [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
+       (Program `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15))) (CFG (map (lambda (x) (match x
+                                                                                                                                                                                             [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
    
-(define (assign-nat n)
+(define (assign-nat n type)
   (let [(last-reg (sub1 (length reg-colors)))]
-    (cond [(> n last-reg) (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
-          [else (Reg (rev-match-alist n reg-colors))])))
+    (cond [(<= n last-reg) (Reg (rev-match-alist n reg-colors))]
+          [(list? type) (Deref 'r15 (* -8 (add1 (- n last-reg))))]
+          [else (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
+          )))
 
 (define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
         [else (match (car locals)
-                [(Var v) (cons `(,v . ,(assign-nat (match-alist v colors))) (generate-assignments (cdr locals) colors))])]))
+                [`(,(Var v) . ,type) (cons `(,v . ,(assign-nat (match-alist v colors) type)) (generate-assignments (cdr locals) colors))])]))
 
 (define (assign-instr inst homes)
   (match inst
@@ -640,6 +647,8 @@
     [(Instr 'cmpq (list (Imm n1) (Imm n2)))
      (list (Instr 'movq (list (Imm n2) (Reg 'rax)))
            (Instr 'cmpq (list (Imm n1) (Reg 'rax))))]
+    [(Instr 'cmpq (list (Reg r) (Imm n))) (list (Instr 'cmpq (list (Imm n) (Reg r))))]
+    [(Instr 'cmpq (list (Deref r loc) (Imm n))) (list (Instr 'cmpq (list (Imm n) (Deref r loc))))]
     [(Instr 'movzbq (list x y)) #:when (not (Reg? y))
                                 (list (Instr 'movzbq (list x (Reg 'rax)))
                                       (Instr 'movq (list (Reg 'rax) y)))]
@@ -661,32 +670,44 @@
                (map
                 (lambda (x) `(,(car x) . ,(patch (cdr x)))) B-list)))]))
        
+(define heap-size 32768)
+(define root-stack-size 16384)
+
+
+(define (initialize-garbage-collector root-spills)
+  (list (Instr 'movq (list (Imm root-stack-size) (Reg 'rdi)))
+        (Instr 'movq (list (Imm heap-size) (Reg 'rsi)))
+        (Callq 'initialize)
+        (Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
+        (Instr 'movq (list (Imm 0) (Reg 'r15)))
+        (Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
 
 ;; generates an x86 representation of the main clause
-(define (make-main stack-size used-regs)
+(define (make-main stack-size used-regs root-spills)
   (let ([extra-pushes (filter (lambda (reg)
                                 (match reg
                                   [(Reg x) (index-of callee-registers x)]
                                   [x false]))
                               used-regs)])
-    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (append (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp))) (Jmp 'start)))))))
+    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (initialize-garbage-collector root-spills) (list  (Jmp 'start))))))
 
 ;; generates an x86 representation of the conclusion
 
-(define (make-conclusion stack-size used-regs)
+(define (make-conclusion stack-size used-regs root-spills)
   (let ([extra-pops (filter (lambda (reg)
                               (match reg
                                 [(Reg x) (index-of callee-registers x)]
                                 [x false]))
                             used-regs)])
-    (Block '() (append (list (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) (Retq)))))))
+    (Block '() (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15))) (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) (Retq)))))))
 
 (define (stringify-ref ref)
   (match ref
     [(Imm x) (format "$~a" x)]
     [(Reg x) (format "%~a" x)]
     [(ByteReg reg) (format "%~a" reg)]
-    [(Deref reg loc) (format "~a(%~a)" loc reg)]))
+    [(Deref reg loc) (format "~a(%~a)" loc reg)]
+    [(Global var) (format "~a(%rip)" (label-name var))]))
 
 (define (stringify-instr instr)
   (match instr
@@ -712,10 +733,12 @@
   (match p
     [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
                                    (let [(used-regs (set->list (list->set (match-alist 'used-regs info))))]
-                                     (let [(main (make-main stack-size used-regs))]
-                                       (let [(conclusion (make-conclusion stack-size used-regs))]
-                                         (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
-                                         ))))]))
+                                     (let [(root-spills (match-alist 'root-stack-size info))]
+                                       (let [(main (make-main stack-size used-regs root-spills))]
+                                         (let [(conclusion (make-conclusion stack-size used-regs root-spills))]
+                                           (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
+                                           )))))]))
 
-(define test-compile (compose select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink type-check parse-program (lambda (x) `(program () ,x))))
-(define test-program '(let([v (vector (vector 44))])(let([x (let([w (vector 42)]) (let([_ (vector-set! v 0 w)])0))])(+ x (vector-ref (vector-ref v 0) 0)))))
+(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
+(define test-program '(let ([v (vector 1 2)])
+  42))
