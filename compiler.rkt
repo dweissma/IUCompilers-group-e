@@ -113,13 +113,13 @@
                       (error "Logical operators only operate on booleans"))]
     [(Prim cmp es) #:when (index-of '(eq?) cmp) (define-values (e1 t1) (type-check-exp env (car es)))
                    (define-values (e2 t2) (type-check-exp env (cadr es)))
-                   (if (eq? t1 t2)
+                   (if (equal? t1 t2)
                        (values (HasType (Prim cmp `(,e1 ,e2)) 'Boolean) 'Boolean)
                        (error "comparison between different types not supported"))]
     [(If cond exp else) (define-values (exp-e exp-t) (type-check-exp env exp))
                         (define-values (else-e else-t) (type-check-exp env else))
                         (define-values (cond-e cond-t) (type-check-exp env cond))
-                        (if (eq? exp-t else-t)
+                        (if (equal? exp-t else-t)
                             (if (eq? 'Boolean cond-t)
                                 (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
                                 (error "If condition must be a Boolean"))
@@ -465,7 +465,7 @@
                                                         (Instr 'movq (list (slct-atom y) (Reg 'rax)))
                                                         (Instr 'addq (list (slct-atom v) (Reg 'rax)))
                                                         (Jmp 'conclusion))]
-       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* -8 (add1 n))) (Reg 'rax))) (Jmp 'conclusion))])]))
+       [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* 8 (add1 n))) (Reg 'rax))) (Jmp 'conclusion))])]))
 
 (define (select-instructions p)
   (match p
@@ -620,7 +620,7 @@
 (define (assign-nat n type)
   (let [(last-reg (sub1 (length reg-colors)))]
     (cond [(<= n last-reg) (Reg (rev-match-alist n reg-colors))]
-          [(list? type) (Deref 'r15 (* -8 (add1 (- n last-reg))))]
+          [(list? type) (Deref 'r15 (* 8 (add1 (- n last-reg))))]
           [else (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
           )))
 
@@ -757,6 +757,7 @@
                                            )))))]))
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
-(define test-program '(let ([v (vector 4 (vector 2 (vector 6 (vector (vector 1 42) (vector 3)))))])
-  (vector-ref (vector-ref (vector-ref (vector-ref (vector-ref v 1) 1) 1) 0) 1))
+(define test-program '(let ([v1 (vector 0)])
+  (let ([v2 (vector 0)])
+    (if (eq? v1 v2) 777 42)))
 )

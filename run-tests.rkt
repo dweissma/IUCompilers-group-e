@@ -24,11 +24,11 @@
      ("remove complex opera*" ,remove-complex-opera* ,interp-R-prime)
      ("explicate control" ,explicate-control ,interp-C2)
      ("uncover locals" ,uncover-locals ,interp-C2)
-     ("instruction selection" ,select-instructions ,R3-interp-x86)
-     ("uncover live", uncover-live, R3-interp-x86)
-     ("build interference", build-interference, R3-interp-x86)
-     ("allocate registers", allocate-registers, R3-interp-x86)
-     ("patch instructions" ,patch-instructions ,R3-interp-x86)
+     ("instruction selection" ,select-instructions ,interp-pseudo-x86-2)
+     ("uncover live", uncover-live, interp-pseudo-x86-2)
+     ("build interference", build-interference,  interp-pseudo-x86-2)
+     ("allocate registers", allocate-registers,  interp-pseudo-x86-2)
+     ("patch instructions" ,patch-instructions , interp-pseudo-x86-2)
      ("print x86" ,print-x86 #f)
      ))
 
@@ -46,11 +46,11 @@
           (string=? r (car (string-split p "_"))))
         all-tests)))
 
-;(interp-tests "r1" #f r3-passes interp-R3 "r1" (tests-for "r1"))
+(interp-tests "r1" #f r3-passes interp-R3 "r1" (tests-for "r1"))
 ;(compiler-tests "r1" #f r3-passes "r1" (tests-for "r1"))
 
-;(interp-tests "r2" type-check r3-passes interp-R3 "r2" (tests-for "r2"))
+(interp-tests "r2" type-check r3-passes interp-R3 "r2" (tests-for "r2"))
 ;(compiler-tests "r2" type-check r3-passes "r2" (tests-for "r2"))
 
 (interp-tests "r3" type-check r3-passes interp-R3 "r3" (tests-for "r3"))
-(compiler-tests "r3" type-check r3-passes "r3" (tests-for "r3"))
+;(compiler-tests "r3" type-check r3-passes "r3" (tests-for "r3"))
