@@ -12,13 +12,16 @@
 ;; Note that your compiler file (or whatever file provides your passes)
 ;; should be named "compiler.rkt"
 
+(define interp-R-prime
+  (let ([interp (new interp-R3-class)])
+    (send interp interp-scheme '())))
 
 (define r3-passes
   `( ("type check R2", type-check, interp-R3)
      ("shrink", shrink, interp-R3)
      ("uniquify" ,uniquify ,interp-R3)
-     ("expose allocation", expose-allocation, interp-scheme)
-     ("remove complex opera*" ,remove-complex-opera* ,interp-scheme)
+     ("expose allocation", expose-allocation, interp-R-prime)
+     ("remove complex opera*" ,remove-complex-opera* ,interp-R-prime)
      ("explicate control" ,explicate-control ,interp-C2)
      ("uncover locals" ,uncover-locals ,interp-C2)
      ("instruction selection" ,select-instructions ,R3-interp-x86)
