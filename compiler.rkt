@@ -679,12 +679,21 @@
 (define root-stack-size 16384)
 
 
+
+(define (paren-reg reg)
+  (let ([string-reg (symbol->string reg)])
+    (string-prefix? string-reg "@")))
+
+(define (extract-paren-reg reg)
+  (let ([string-reg (symbol->string reg)])
+    (string->symbol (substring string-reg 1))))
+
 (define (initialize-garbage-collector root-spills)
   (list (Instr 'movq (list (Imm root-stack-size) (Reg 'rdi)))
         (Instr 'movq (list (Imm heap-size) (Reg 'rsi)))
         (Callq 'initialize)
         (Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
-        (Instr 'movq (list (Imm 0) (Reg 'r15)))
+        (Instr 'movq (list (Imm 0) (Reg '@r15)))
         (Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
 
 ;; generates an x86 representation of the main clause
@@ -709,6 +718,7 @@
 (define (stringify-ref ref)
   (match ref
     [(Imm x) (format "$~a" x)]
+    [(Reg x) #:when(paren-reg x) (format "(%~a)" (extract-paren-reg x))]
     [(Reg x) (format "%~a" x)]
     [(ByteReg reg) (format "%~a" reg)]
     [(Deref reg loc) (format "~a(%~a)" loc reg)]
@@ -723,6 +733,8 @@
     [(Instr name regs) (format "\t~a ~a\n" name (string-join (map stringify-ref regs) ", "))]
     [(Retq) (format "\tretq \n")]
     [x (format "\t~a" x)]))
+
+
 
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
@@ -745,10 +757,6 @@
                                            )))))]))
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
-(define test-program '(let ([v0 (vector 0 1 2 3 4 5 6 7 8 9
-                  10 11 12 13 14 15 16 17 18 19
-                  20 21 22 23 24 25 26 27 28 29
-                  30 31 32 33 34 35 36 37 38 39
-                  40 41 42 43 44 45 46 47 48 49)])
-  (vector-ref v0 42))
+(define test-program '(let ([v (vector 4 (vector 2 (vector 6 (vector (vector 1 42) (vector 3)))))])
+  (vector-ref (vector-ref (vector-ref (vector-ref (vector-ref v 1) 1) 1) 0) 1))
 )
