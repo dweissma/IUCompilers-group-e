@@ -339,6 +339,11 @@
                                                                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))]
     [(HasType (Prim 'not (list var)) t) (begin (define-values (result result-vars result-cgraph) (explicate-pred var false-blk true-blk cgraph))
                                                (values result result-vars result-cgraph))]
+    [(HasType (Prim 'vector-ref (list vect int)) t)
+     (let ([temp (gensym "tmp")] [then-lbl (gensym "block")] [else-lbl (gensym "block")])
+       (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Prim 'vector-ref (list vect int)) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
+                                                                                                                                                          (cons `(,else-lbl . ,false-blk) cgraph))))
+       (values tail vars assigned-cgraph))]
     [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
                                  (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))]
@@ -670,7 +675,7 @@
                (map
                 (lambda (x) `(,(car x) . ,(patch (cdr x)))) B-list)))]))
        
-(define heap-size 32768)
+(define heap-size 1024)
 (define root-stack-size 16384)
 
 
@@ -740,5 +745,10 @@
                                            )))))]))
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
-(define test-program '(let ([v (vector 1 2)])
-  42))
+(define test-program '(let ([v0 (vector 0 1 2 3 4 5 6 7 8 9
+                  10 11 12 13 14 15 16 17 18 19
+                  20 21 22 23 24 25 26 27 28 29
+                  30 31 32 33 34 35 36 37 38 39
+                  40 41 42 43 44 45 46 47 48 49)])
+  (vector-ref v0 42))
+)

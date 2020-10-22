@@ -17,8 +17,8 @@
   `( ("type check R2", type-check, interp-R3)
      ("shrink", shrink, interp-R3)
      ("uniquify" ,uniquify ,interp-R3)
-     ("expose allocation", expose-allocation, interp-R3)
-     ("remove complex opera*" ,remove-complex-opera* ,interp-R3)
+     ("expose allocation", expose-allocation, interp-scheme)
+     ("remove complex opera*" ,remove-complex-opera* ,interp-scheme)
      ("explicate control" ,explicate-control ,interp-C2)
      ("uncover locals" ,uncover-locals ,interp-C2)
      ("instruction selection" ,select-instructions ,R3-interp-x86)
@@ -43,11 +43,11 @@
           (string=? r (car (string-split p "_"))))
         all-tests)))
 
-;(interp-tests "r1" #f r3-passes interp-R3 "r1" (tests-for "r1"))
-;(compiler-tests "r1" #f r3-passes "r1" (tests-for "r1"))
+(interp-tests "r1" #f r3-passes interp-R3 "r1" (tests-for "r1"))
+(compiler-tests "r1" #f r3-passes "r1" (tests-for "r1"))
 
-;(interp-tests "r2" type-check r3-passes interp-R3 "r2" (tests-for "r2"))
-;(compiler-tests "r2" type-check r3-passes "r2" (tests-for "r2"))
+(interp-tests "r2" type-check r3-passes interp-R3 "r2" (tests-for "r2"))
+(compiler-tests "r2" type-check r3-passes "r2" (tests-for "r2"))
 
-;(interp-tests "r3" type-check r3-passes interp-R3 "r3" (tests-for "r3"))
+(interp-tests "r3" type-check r3-passes interp-R3 "r3" (tests-for "r3"))
 (compiler-tests "r3" type-check r3-passes "r3" (tests-for "r3"))
