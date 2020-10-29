@@ -23,6 +23,11 @@
         [(equal? var (cdr (car alist))) (car (car alist))]
         [else (rev-match-alist var (cdr alist))]])
 
+(define (rev-match-alist-all var alist)
+  [cond [(empty? alist) '()]
+        [(equal? var (cdr (car alist))) (cons (car (car alist)) (rev-match-alist-all var (cdr alist)))]
+        [else (rev-match-alist-all var (cdr alist))]])
+
 (define (remove-duplicates ls)
   (set->list (list->set ls)))
 
@@ -56,6 +61,9 @@
                                                                         (begin (add-vertex! g 'start)
                                                                                g)
                                                                         g))]))
+
+(define (all-ints start stop step)
+  (if (>= start stop) '() (cons start (all-ints (+ start step) stop step))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
@@ -124,8 +132,8 @@
                                 (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
                                 (error "If condition must be a Boolean"))
                             (error "Both if cases must be the same type"))]
-   [(HasType exp type)
-    (values (HasType exp type) type)]
+    [(HasType exp type)
+     (values (HasType exp type) type)]
     ))
 
 
@@ -342,7 +350,7 @@
     [(HasType (Prim 'vector-ref (list vect int)) t)
      (let ([temp (gensym "tmp")] [then-lbl (gensym "block")] [else-lbl (gensym "block")])
        (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Prim 'vector-ref (list vect int)) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
-                                                                                                                                                          (cons `(,else-lbl . ,false-blk) cgraph))))
+                                                                                                                                                                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))
        (values tail vars assigned-cgraph))]
     [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
                                  (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
@@ -401,8 +409,6 @@
      (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) B-list))])
        (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
      
-
-
 
 (define (calculate-tag types t-len)
   (if (empty? types) (add1 (* 2 t-len))
@@ -533,6 +539,8 @@
 (define callee-registers '(r12 r13 r14 rbx rbp))
 (define instrs-with-writes '(addq movq xorq movzbq))
 
+(define last-reg (sub1 (length reg-colors)))
+
 (define (add-from-instr graph instr live-after types)
   (match instr
     [(Callq 'collect) (for ([x live-after]) (if (list? (match-alist (Var x) types)) (for ([y caller-registers]) (add-edge! graph x y)) (for ([y (append caller-registers callee-registers)]) (add-edge! graph x y))))]
@@ -584,16 +592,23 @@
   (begin (for ([x (get-vertices g)] #:when (match-alist x reg-colors)) (rename-vertex! g x `(,x . ,(match-alist x reg-colors))))
          g))
 
-(define (smallest-missing-nat ls n)
-  (cond [(false? (member n ls)) n]
-        [else (smallest-missing-nat ls (add1 n))]))
+(define (smallest-color ls n locals type)
+  (if (<= n last-reg)
+      (if (false? (rev-match-alist n ls)) n (smallest-color ls (add1 n) locals type))
+      (if (list? type) ;Assigns root-stack variables the same colors as regular stack vars
+          (if (andmap (lambda (var) (not (list? (match-alist var locals)))) (rev-match-alist-all n ls))
+              n
+              (smallest-color ls (add1 n) locals type))
+          (if (andmap (lambda (var) (list? (match-alist var locals))) (rev-match-alist-all n ls))
+              n
+              (smallest-color ls (add1 n) locals type)))))
 
 (define (color-graph-accum g locals accum)
   (let [(vars (filter (lambda (x) (not (pair? x))) (get-vertices g)))]
     (cond [(empty? vars) accum] ;no colors needed everything is already colored
           [else (let [(most-constrained (car (sort vars #:key (lambda (v) (length (filter pair? (get-neighbors g v)))) >)))]
-                  (let [(used-colors (map cdr (filter pair? (get-neighbors g most-constrained))))]
-                    (let [(color (smallest-missing-nat used-colors 0))]
+                  (let [(used-colors (filter pair? (get-neighbors g most-constrained)))]
+                    (let [(color (smallest-color used-colors 0 locals (match-alist most-constrained locals)))]
                       (begin (rename-vertex! g most-constrained `(,most-constrained . ,color))
                              (color-graph-accum g locals (cons `(,most-constrained . ,color) accum))))))])))
                     
@@ -616,13 +631,15 @@
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
        (Program `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15))) (CFG (map (lambda (x) (match x
                                                                                                                                                                                              [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
-   
+
+
+
 (define (assign-nat n type)
-  (let [(last-reg (sub1 (length reg-colors)))]
-    (cond [(<= n last-reg) (Reg (rev-match-alist n reg-colors))]
-          [(list? type) (Deref 'r15 (* 8 (add1 (- n last-reg))))]
-          [else (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
-          )))
+  (cond [(<= n last-reg) (Reg (rev-match-alist n reg-colors))]
+        [(list? type) (Deref 'r15 (* 8 (add1 (- n last-reg))))]
+        [else (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
+        ))
+
 
 (define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
@@ -678,23 +695,13 @@
 (define heap-size 1024)
 (define root-stack-size 16384)
 
-
-
-(define (paren-reg reg)
-  (let ([string-reg (symbol->string reg)])
-    (string-prefix? string-reg "@")))
-
-(define (extract-paren-reg reg)
-  (let ([string-reg (symbol->string reg)])
-    (string->symbol (substring string-reg 1))))
-
 (define (initialize-garbage-collector root-spills)
-  (list (Instr 'movq (list (Imm root-stack-size) (Reg 'rdi)))
-        (Instr 'movq (list (Imm heap-size) (Reg 'rsi)))
-        (Callq 'initialize)
-        (Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
-        (Instr 'movq (list (Imm 0) (Reg '@r15)))
-        (Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
+  `(    ,(Instr 'movq (list (Imm root-stack-size) (Reg 'rdi)))
+        ,(Instr 'movq (list (Imm heap-size) (Reg 'rsi)))
+        ,(Callq 'initialize)
+        ,(Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
+        ,@(map (lambda (n) (Instr 'movq (list (Imm 0) (Deref 'r15 n)))) (all-ints 0 (add1 root-spills) 8))
+        ,(Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
 
 ;; generates an x86 representation of the main clause
 (define (make-main stack-size used-regs root-spills)
@@ -718,7 +725,6 @@
 (define (stringify-ref ref)
   (match ref
     [(Imm x) (format "$~a" x)]
-    [(Reg x) #:when(paren-reg x) (format "(%~a)" (extract-paren-reg x))]
     [(Reg x) (format "%~a" x)]
     [(ByteReg reg) (format "%~a" reg)]
     [(Deref reg loc) (format "~a(%~a)" loc reg)]
@@ -758,6 +764,6 @@
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
 (define test-program '(let ([v1 (vector 0)])
-  (let ([v2 (vector 0)])
-    (if (eq? v1 v2) 777 42)))
-)
+                        (let ([v2 (vector 0)])
+                          (if (eq? v1 v2) 777 42)))
+  )
