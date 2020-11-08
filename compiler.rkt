@@ -289,7 +289,7 @@
     [(HasType (Apply (HasType f t) es) type) #:when (> (length es) 6)
                   (HasType (Apply (HasType (limit-exp f vec vect-indices) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
                          (append (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 0 5))
-                                 `(,(Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 5 (length es))))))) type)]
+                                 `(,(HasType (Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 5 (length es)))) `(Vector ,@(slice t 5 (index-of t '->))))))) type)]
     [(Apply f es) (Apply (limit-exp f vec vect-indices) (map (lambda (x) (limit-exp x vec vect-indices)) es))]
     [(HasType exp type)
      (HasType (limit-exp exp vec vect-indices) type)]))
@@ -349,12 +349,18 @@
      (Let x (expose-exp e) (expose-exp body))]
     [(If cond exp else) (If (expose-exp cond) (expose-exp exp) (expose-exp else))]
     [(HasType exp type) (HasType (expose-exp exp) type)]
+    [(Apply f es) (Apply (expose-exp f) (for/list ([e es]) (expose-exp e)))]
     [x x]))
-    
+
+(define (expose-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (Def name p:t* rt info (expose-exp body))]))
+
 (define (expose-allocation p)
   (match p
-    [(Program info e)
-     (Program info (expose-exp e))]))
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map expose-def ds))]))
 
 ;Expands an alist into let expression binding each variable to its associated expression
 (define (expand-alist alist base type)
@@ -866,7 +872,7 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-compile (compose expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
 (define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
                        (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
                        (func 1 2 3 4 5 6 7))
