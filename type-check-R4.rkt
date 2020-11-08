@@ -21,6 +21,13 @@
 
 (define (type-check-exp env)
   (lambda (e)
+    (define-values (exp t) ((type-check-exp2 env) e))
+    (match exp
+      [(HasType e type) (if (type-equal? type t) (values (HasType e type) type) (error "type error HasType does not match type"))]
+      [else (values (HasType exp t) t)])))
+
+(define (type-check-exp2 env)
+  (lambda (e)
     (define recur (type-check-exp env))
     (match e
       [(Var x)
@@ -116,7 +123,7 @@
        (define-values (e^ t^) (recur e))
        (unless (type-equal? t t^)
          (error 'type-check-exp "type mismatch in HasType" t t^))
-       (values (HasType e^ t) t)]
+       (values (e^ t))]
       [(GlobalValue name)
        (values (GlobalValue name) 'Integer)]
       [(Allocate size t)

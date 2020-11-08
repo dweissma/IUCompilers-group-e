@@ -4,6 +4,7 @@
 (require "interp-R0.rkt")
 (require "interp-R1.rkt")
 (require "interp.rkt")
+(require "type-check-R4.rkt")
 (require "utilities.rkt")
 (provide (all-defined-out))
 (require graph)
@@ -30,6 +31,10 @@
 
 (define (remove-duplicates ls)
   (set->list (list->set ls)))
+
+(define (type-is-function? type)
+  (cond [(list? type) (member '-> type)]
+        [else #f]))
 
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
@@ -65,85 +70,91 @@
 (define (all-ints start stop step)
   (if (>= start stop) '() (cons start (all-ints (+ start step) stop step))))
 
+
+(define (slice ls first-in first-out)
+  (if (eq? first-in first-out) '()
+      (if (zero? first-in) (cons (car ls) (slice (cdr ls) first-in (sub1 first-out)))
+          (slice (cdr ls) (sub1 first-in) (sub1 first-out)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (type-check-exp env e)
-  (match e
-    [(Var x)
-     (define type (match-alist x env))
-     (values (HasType (Var x) type) type)]
-    [(Void) (values (HasType (Void)'Void)'Void)]
-    [(Prim 'vector es)
-     (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
-     (let ([t `(Vector ,@t*)]) (values (HasType (Prim 'vector e*) t) t))]
-    [(Prim 'vector-ref (list e (Int i)))
-     (define-values (e^ t) (type-check-exp env e))
-     (match t
-       [`(Vector ,ts ...)
-        (unless (and (exact-nonnegative-integer? i) (< i (length ts)))
-          (error 'type-check-exp "invalid index ~a" i))
-        (let ([t (list-ref ts i)])
-          (values
-           (HasType (Prim 'vector-ref (list e^ (HasType (Int i) 'Integer))) t) t))]
-       [else (error "expected a vector in vector-ref, not" t)])]
-    [(Prim 'vector-set! (list vect (Int i) val))
-     (define-values (vect-exp vect-type) (type-check-exp env vect))
-     (define-values (i-exp i-type) (type-check-exp env (Int i)))
-     (define-values (val-exp val-type) (type-check-exp env val))
-     (if (not (eq? i-type 'Integer))
-         (error "The type of index for vector-set! must be an Integer")
-         (if (not (eq? (car vect-type) 'Vector))
-             (error "Vector set got a non vector")
-             (if (not (equal? (list-ref vect-type (add1 i)) val-type))
-                 (error (format "Changing vector types is not supported got ~a ~a" (list-ref vect-type (add1 i)) val-type))
-                 (values (HasType (Prim 'vector-set! (list vect-exp i-exp val-exp)) 'Void) 'Void))))]
-    [(Int n) (values (HasType (Int n) 'Integer) 'Integer)]
-    [(Bool bool) (values (HasType (Bool bool) 'Boolean) 'Boolean)]
-    [(Let x e body)
-     (define-values (var-exp var-type) (type-check-exp env e))
-     (define-values (body-exp body-type) (type-check-exp (cons `(,x . ,var-type) env) body))
-     (values (HasType (Let x var-exp body-exp) body-type) body-type)]
-    [(Prim 'read es)
-     (values (HasType (Prim 'read es) 'Integer) 'Integer)]
-    [(Prim op es) #:when (index-of '(- +) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
-                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
-                      (values (HasType (Prim op e*) 'Integer) 'Integer)
-                      (error (format "Arthimetic operators only operate on integers (got ~a) with env: ~a" t* env)))]
-    [(Prim op es) #:when (index-of '(< <= > >=) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
-                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
-                      (values (HasType (Prim op e*) 'Boolean) 'Boolean)
-                      (error (format "Comparison operators only operate on integers (got ~a) with env: ~a" t* env)))]
-    [(Prim op es) #:when (index-of '(and or not) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
-                  (if (andmap (lambda (t) (eq? 'Boolean t)) t*)
-                      (values (HasType (Prim op e*) 'Boolean) 'Boolean)
-                      (error "Logical operators only operate on booleans"))]
-    [(Prim cmp es) #:when (index-of '(eq?) cmp) (define-values (e1 t1) (type-check-exp env (car es)))
-                   (define-values (e2 t2) (type-check-exp env (cadr es)))
-                   (if (equal? t1 t2)
-                       (values (HasType (Prim cmp `(,e1 ,e2)) 'Boolean) 'Boolean)
-                       (error "comparison between different types not supported"))]
-    [(If cond exp else) (define-values (exp-e exp-t) (type-check-exp env exp))
-                        (define-values (else-e else-t) (type-check-exp env else))
-                        (define-values (cond-e cond-t) (type-check-exp env cond))
-                        (if (equal? exp-t else-t)
-                            (if (eq? 'Boolean cond-t)
-                                (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
-                                (error "If condition must be a Boolean"))
-                            (error "Both if cases must be the same type"))]
-    [(HasType exp type)
-     (values (HasType exp type) type)]
-    ))
+
+
+;(define (type-check-exp env e)
+;  (match e
+;    [(Var x)
+;     (define type (match-alist x env))
+;     (values (HasType (Var x) type) type)]
+;    [(Void) (values (HasType (Void)'Void)'Void)]
+;    [(Prim 'vector es)
+;     (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+;     (let ([t `(Vector ,@t*)]) (values (HasType (Prim 'vector e*) t) t))]
+;    [(Prim 'vector-ref (list e (Int i)))
+;     (define-values (e^ t) (type-check-exp env e))
+;     (match t
+;       [`(Vector ,ts ...)
+;        (unless (and (exact-nonnegative-integer? i) (< i (length ts)))
+;          (error 'type-check-exp "invalid index ~a" i))
+;        (let ([t (list-ref ts i)])
+;          (values
+;           (HasType (Prim 'vector-ref (list e^ (HasType (Int i) 'Integer))) t) t))]
+;       [else (error "expected a vector in vector-ref, not" t)])]
+;    [(Prim 'vector-set! (list vect (Int i) val))
+;     (define-values (vect-exp vect-type) (type-check-exp env vect))
+;     (define-values (i-exp i-type) (type-check-exp env (Int i)))
+;     (define-values (val-exp val-type) (type-check-exp env val))
+;     (if (not (eq? i-type 'Integer))
+;         (error "The type of index for vector-set! must be an Integer")
+;         (if (not (eq? (car vect-type) 'Vector))
+;             (error "Vector set got a non vector")
+;             (if (not (equal? (list-ref vect-type (add1 i)) val-type))
+;                 (error (format "Changing vector types is not supported got ~a ~a" (list-ref vect-type (add1 i)) val-type))
+;                 (values (HasType (Prim 'vector-set! (list vect-exp i-exp val-exp)) 'Void) 'Void))))]
+;    [(Int n) (values (HasType (Int n) 'Integer) 'Integer)]
+;    [(Bool bool) (values (HasType (Bool bool) 'Boolean) 'Boolean)]
+;    [(Let x e body)
+;     (define-values (var-exp var-type) (type-check-exp env e))
+;     (define-values (body-exp body-type) (type-check-exp (cons `(,x . ,var-type) env) body))
+;     (values (HasType (Let x var-exp body-exp) body-type) body-type)]
+;    [(Prim 'read es)
+;     (values (HasType (Prim 'read es) 'Integer) 'Integer)]
+;    [(Prim op es) #:when (index-of '(- +) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+;                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
+;                      (values (HasType (Prim op e*) 'Integer) 'Integer)
+;                      (error (format "Arthimetic operators only operate on integers (got ~a) with env: ~a" t* env)))]
+;    [(Prim op es) #:when (index-of '(< <= > >=) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+;                  (if (andmap (lambda (t) (eq? t 'Integer)) t*)
+;                      (values (HasType (Prim op e*) 'Boolean) 'Boolean)
+;                      (error (format "Comparison operators only operate on integers (got ~a) with env: ~a" t* env)))]
+;    [(Prim op es) #:when (index-of '(and or not) op) (define-values (e* t*) (for/lists (e* t*) ([e es]) (type-check-exp env e)))
+;                  (if (andmap (lambda (t) (eq? 'Boolean t)) t*)
+;                      (values (HasType (Prim op e*) 'Boolean) 'Boolean)
+;                      (error "Logical operators only operate on booleans"))]
+;    [(Prim cmp es) #:when (index-of '(eq?) cmp) (define-values (e1 t1) (type-check-exp env (car es)))
+;                   (define-values (e2 t2) (type-check-exp env (cadr es)))
+;                   (if (equal? t1 t2)
+;                       (values (HasType (Prim cmp `(,e1 ,e2)) 'Boolean) 'Boolean)
+;                       (error "comparison between different types not supported"))]
+;    [(If cond exp else) (define-values (exp-e exp-t) (type-check-exp env exp))
+;                        (define-values (else-e else-t) (type-check-exp env else))
+;                        (define-values (cond-e cond-t) (type-check-exp env cond))
+;                        (if (equal? exp-t else-t)
+;                            (if (eq? 'Boolean cond-t)
+;                                (values (HasType (If cond-e exp-e else-e) exp-t) exp-t)
+;                                (error "If condition must be a Boolean"))
+;                            (error "Both if cases must be the same type"))]
+;    [(Apply e es)
+;       (define-values (e^ es^ rt) (type-check-apply env e es))
+;       (values (HasType (Apply e^ es^) rt) rt)]
+;    [(HasType exp type)
+;     (values (HasType exp type) type)]
+;    ))
+
 
 
 (define (type-check p)
-  (match p
-    [(Program info e)
-     (begin (define-values (exp type) (type-check-exp '() e))
-            (if (eq? 'Integer type)
-                (Program info exp)
-                (error 'type-check-R2 "R3 programs should type check to an integer")))]))
+  (type-check-R4 p))
 
 (define (shrink-exp e)
   (match e
@@ -170,14 +181,20 @@
     [(Prim op es) (Prim op (map shrink-exp es))]
     [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
+    [(Apply f es) (Apply f (map shrink-exp es))]
     [x x]))
     
-    
+(define (shrink-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (Def name p:t* rt info (shrink-exp body))]))
   
 (define (shrink p)
   (match p
-    [(Program info e)
-     (Program info (shrink-exp e))]
+    [(Program info exp)
+     (ProgramDefs info `(,(Def 'main '() 'Integer '() (shrink-exp exp))))]
+    [(ProgramDefsExp info defs exp)
+     (ProgramDefs info `(,@(map shrink-def defs) ,(Def 'main '() 'Integer '() (shrink-exp exp))))]
     ))
 
 
@@ -196,13 +213,100 @@
       [(Prim op es)
        (Prim op (for/list ([e es]) ((uniquify-exp symtab) e)))]
       [(If cond exp else) (If ((uniquify-exp symtab) cond) ((uniquify-exp symtab) exp) ((uniquify-exp symtab) else))]
+      [(Apply f es) (Apply f (map (uniquify-exp symtab) es))]
       )))
+
+(define (uniquify-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (define symtab (map (lambda (x) `(,x . ,(gensym x))) xs))
+     (define unique-body ((uniquify-exp symtab) body))
+     (Def name (map (lambda (x p) `(,(match-alist x symtab) : ,p)) xs ps) rt info unique-body)])) 
 
 ;; uniquify : R1 -> R1
 (define (uniquify p)
   (match p
     [(Program info e)
      (Program info ((uniquify-exp '()) e))]
+    [(ProgramDefsExp info defs exp)
+     (ProgramDefsExp info (map uniquify-def defs) ((uniquify-exp '()) exp))]
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map uniquify-def ds))]
+    ))
+
+(define (reveal-exp exp)
+  (match exp
+    [(HasType (Var x) t) #:when (type-is-function? t) (HasType (FunRef x) t)]
+    [(Var x)
+     (Var x)]
+    [(HasType exp type)
+     (HasType (reveal-exp exp) type)] 
+    [(Int n) (Int n)]
+    [(Bool bool) (Bool bool)]
+    [(Let x e body)
+     (Let x (reveal-exp e) (reveal-exp body))]
+    [(Prim op es)
+     (Prim op (for/list ([e es]) (reveal-exp e)))]
+    [(If cond exp else) (If (reveal-exp cond) (reveal-exp exp) (reveal-exp else))]
+    [(Apply f es) (Apply (reveal-exp f) (map reveal-exp es))]))  
+
+(define (reveal-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (Def name p:t* rt info (reveal-exp body))]))
+
+(define (reveal-functions p)
+  (match p
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map reveal-def ds))]
+    ))
+
+
+(define (make-limited-list types)
+  (if (> (length types) 6)
+      (let [(vec (gensym 'vec))] (values vec (append (slice types 0 5) `((,vec : (Vector ,@(map (lambda (x) (match x [`(,v : ,t) t])) (slice types 5 (length types)))))))))
+      (values #f types)))
+
+(define (get-vect-indices types)
+  (if (> (length types) 6)
+      (map (lambda (x n) (match x [`(,var : ,t) `(,var . ,n)])) (slice types 5 (length types)) (range (length (slice types 5 (length types)))))
+      '()))
+
+(define (limit-exp exp vec vect-indices)
+  (match exp
+    [(Var x) #:when (match-alist x vect-indices) (Prim 'vector-ref (list (Var vec) (Int (match-alist x vect-indices))))]
+    [(Var x)
+     (Var x)]
+    [(FunRef x) #:when (match-alist x vect-indices) (Prim 'vector-ref (list (Var vec) (Int (match-alist x vect-indices))))]
+    [(FunRef x) (FunRef x)] 
+    [(Int n) (Int n)]
+    [(Bool bool) (Bool bool)]
+    [(Let x e body)
+     (Let x (limit-exp e vec vect-indices) (limit-exp body vec vect-indices))]
+    [(Prim op es)
+     (Prim op (for/list ([e es]) (limit-exp e vec vect-indices)))]
+    [(If cond exp else) (If (limit-exp cond vec vect-indices) (limit-exp exp vec vect-indices) (limit-exp else vec vect-indices))]
+    [(HasType (Apply (HasType f t) es) type) #:when (> (length es) 6)
+                  (HasType (Apply (HasType (limit-exp f vec vect-indices) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
+                         (append (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 0 5))
+                                 `(,(Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 5 (length es))))))) type)]
+    [(Apply f es) (Apply (limit-exp f vec vect-indices) (map (lambda (x) (limit-exp x vec vect-indices)) es))]
+    [(HasType exp type)
+     (HasType (limit-exp exp vec vect-indices) type)]))
+  
+(define (limit-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (define-values (vec types) (make-limited-list p:t*))
+     (define vect-indices (get-vect-indices p:t*))
+     (define limited-body (limit-exp body vec vect-indices))
+     (Def name types rt info limited-body)]))
+
+
+(define (limit-functions p)
+  (match p
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map limit-def ds))]
     ))
 
 (define (generate-n-vars n)
@@ -762,8 +866,8 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation shrink uniquify type-check parse-program (lambda (x) `(program () ,x))))
-(define test-program '(let ([v1 (vector 0)])
-                        (let ([v2 (vector 0)])
-                          (if (eq? v1 v2) 777 42)))
+(define test-compile (compose limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
+                       (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
+                       (func 1 2 3 4 5 6 7))
   )
