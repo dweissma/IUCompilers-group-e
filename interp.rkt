@@ -5,6 +5,7 @@
          R1-interp-x86 R2-interp-x86 R3-interp-x86
          interp-R1-class interp-R2-class interp-R3-class
 	 interp-R4-class interp-R5-class interp-R6-class
+         interp-F1
          interp-C2 interp-C3
          interp-pseudo-x86-0 interp-x86-0
          interp-pseudo-x86-1 interp-x86-1
@@ -18,6 +19,10 @@
 ;; The interpreters for the source languages (R0, R1, ..., R7)
 ;; and the C intermediate languages C0 and C1
 ;; are in separate files, e.g., interp-R0.rkt.
+
+(define interp-F1
+  (lambda (p)
+    ((send (new interp-R4-class) interp-F '()) p)))
 
 ;; Interpreters for C2 and C3.
 
@@ -51,6 +56,12 @@
   (lambda (p)
     ((send (new interp-R3-class) interp-pseudo-x86 '()) p)))
 
+;; The interp-x86-2 interpreter takes a program of the form
+;; (Program info (CFG G))
+;; Also, the info field must be an association list
+;; with a key 'num-spills that maps to a pair (i.e. cons)
+;; containing the number of spills to the regular stack
+;; and the number of spills to the root stack.
 (define interp-x86-2
   (lambda (p)
     ((send (new interp-R3-class) interp-x86 '()) p)))
