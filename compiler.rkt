@@ -74,7 +74,7 @@
   (match cfg
     [(CFG ls) (let ([g (unweighted-graph/directed (get-edges ls))]) (if (not (has-vertex? g (symb-append name 'start)))
                                                                         (begin (add-vertex! g (symb-append name 'start)) g)
-                                                                               g))]))
+                                                                        g))]))
 
 (define (all-ints start stop step)
   (if (>= start stop) '() (cons start (all-ints (+ start step) stop step))))
@@ -223,9 +223,9 @@
      (Prim op (for/list ([e es]) (limit-exp e vec vect-indices vec-type)))]
     [(If cond exp else) (If (limit-exp cond vec vect-indices vec-type) (limit-exp exp vec vect-indices vec-type) (limit-exp else vec vect-indices vec-type))]
     [(HasType (Apply (HasType f t) es) type) #:when (> (length es) 6)
-                  (HasType (Apply (HasType (limit-exp f vec vect-indices vec-type) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
-                         (append (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 0 5))
-                                 `(,(HasType (Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 5 (length es)))) `(Vector ,@(slice t 5 (index-of t '->))))))) type)]
+                                             (HasType (Apply (HasType (limit-exp f vec vect-indices vec-type) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
+                                                             (append (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 0 5))
+                                                                     `(,(HasType (Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 5 (length es)))) `(Vector ,@(slice t 5 (index-of t '->))))))) type)]
     [(Apply f es) (Apply (limit-exp f vec vect-indices vec-type) (map (lambda (x) (limit-exp x vec vect-indices vec-type)) es))]
     [(HasType exp type)
      (HasType (limit-exp exp vec vect-indices vec-type) type)]))
@@ -418,9 +418,9 @@
                                                                                                                                                                                                                                                            (cons `(,else-lbl . ,false-blk) cgraph))))
        (values tail vars assigned-cgraph))]
     [(HasType (Apply f es) t)  (let ([temp (gensym "tmp")] [then-lbl (gensym "block")] [else-lbl (gensym "block")])
-       (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Apply f es) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
-                                                                                                                                                                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))
-       (values tail vars assigned-cgraph))]
+                                 (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Apply f es) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
+                                                                                                                                                                                                                                                               (cons `(,else-lbl . ,false-blk) cgraph))))
+                                 (values tail vars assigned-cgraph))]
     [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
                                  (values (IfStmt (Prim cmp es) (Goto then-lbl) (Goto else-lbl)) '() (cons `(,then-lbl . ,true-blk)
                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))]
@@ -546,7 +546,7 @@
     [(IfStmt (Prim '< (list exp1 exp2)) (Goto l1) (Goto l2))
      (list (Instr 'cmpq (list (slct-atom exp2) (slct-atom exp1))) (JmpIf 'l l1) (Jmp l2))]
     [(TailCall f es) (append (map (lambda (atm reg) (Instr 'movq (list (slct-atom atm) (Reg reg)))) es (slice arg-regs 0 (length es)))
-                            (list (TailJmp (slct-atom f))))]
+                             (list (TailJmp (slct-atom f))))]
     [(Return (HasType r t))
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
@@ -567,9 +567,9 @@
 (define (select-def def)
   (match def
     [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info (CFG blocks))
-      (Def name '() rt info (CFG
-                             (cons `(,(symb-append name (car (car blocks))) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
-                                   (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks))))))]))
+     (Def name '() rt info (CFG
+                            (cons `(,(symb-append name (car (car blocks))) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
+                                  (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks))))))]))
 
 (define (select-instructions p)
   (match p
@@ -742,7 +742,7 @@
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
        (Def name params rt `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15)))
             (CFG (map (lambda (x) (match x
-                                   [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks))))]))
+                                    [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks))))]))
 
 (define (allocate-registers p)
   (match p
@@ -812,12 +812,7 @@
 (define (patch-instructions p)
   (match p
     [(ProgramDefs info ds)
-     (ProgramDefs info (map patch-def ds))]
-    [(Program info (CFG B-list))
-     (Program info
-              (CFG
-               (map
-                (lambda (x) `(,(car x) . ,(patch (cdr x)))) B-list)))]))
+     (ProgramDefs info (map patch-def ds))]))
        
 (define heap-size 1024)
 (define root-stack-size 16384)
@@ -831,13 +826,13 @@
         ,(Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
 
 ;; generates an x86 representation of the main clause
-(define (make-main stack-size used-regs root-spills)
+(define (make-main stack-size used-regs root-spills name)
   (let ([extra-pushes (filter (lambda (reg)
                                 (match reg
                                   [(Reg x) (index-of callee-registers x)]
                                   [x false]))
                               used-regs)])
-    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (initialize-garbage-collector root-spills) (list  (Jmp 'start))))))
+    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (if (eq? name 'main) (initialize-garbage-collector root-spills) '()) (list  (Jmp (symb-append name 'start)))))))
 
 ;; generates an x86 representation of the conclusion
 
@@ -855,6 +850,7 @@
     [(Reg x) (format "%~a" x)]
     [(ByteReg reg) (format "%~a" reg)]
     [(Deref reg loc) (format "~a(%~a)" loc reg)]
+    [(FunRef lbl) (format "\t~a(%rip)\n" (label-name lbl))]
     [(Global var) (format "~a(%rip)" (label-name var))]))
 
 (define (stringify-instr instr)
@@ -865,22 +861,52 @@
     [(Instr 'set (list cc arg)) (format "\t set~a ~a\n" cc (stringify-ref arg))]
     [(Instr name regs) (format "\t~a ~a\n" name (string-join (map stringify-ref regs) ", "))]
     [(Retq) (format "\tretq \n")]
+    [(IndirectCallq arg) (format "\tcallq *~a" (stringify-ref arg))]
+    [(TailJmp arg) (format "\tjmp *~a" (stringify-ref arg))]
     [x (format "\t~a" x)]))
 
 
 
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
-  (format "~a:~n~a" (if (eq? 'main label) (format ".globl main~n~a" (label-name label)) (label-name label)) (match block
-                                                                                                              ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
+  (format "~a:~n~a" (label-name label) (match block
+                                         ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
 
 ;;Converts an alist of labeled x86 blocks to their string representation
 (define (x86-to-string blocks)
   (foldr (lambda (x rs) (string-append (stringify-block (car x) (cdr x)) rs)) "" blocks))
 
+(define (pop-frame stack-size used-regs root-spills tail)
+  (let ([extra-pops (filter (lambda (reg)
+                              (match reg
+                                [(Reg x) (index-of callee-registers x)]
+                                [x false]))
+                            used-regs)])
+    (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15))) (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) tail)))))
+
+(define (implement-tail-call block stack-size used-regs root-spills)
+  (match block
+    [`(,lbl . ,(Block info instrs)) (if (TailJmp? (last-value instrs))
+                             `(,lbl . ,(Block info (append (slice instrs 0 (sub1 (length instrs)))
+                                                 (pop-frame stack-size used-regs root-spills (last-value instrs)))))
+                             `(,lbl . ,(Block info instrs)))]))
+
+(define (stringify-def def)
+  (match def
+    [(Def name params rt info (CFG blocks))
+     (let [(stack-size (match-alist 'stack-size info))]
+       (let [(used-regs (set->list (list->set (match-alist 'used-regs info))))]
+         (let [(root-spills (match-alist 'root-stack-size info))]
+           (let [(main (make-main stack-size used-regs root-spills name))]
+             (let [(conclusion (make-conclusion stack-size used-regs root-spills))]
+               (format ".globl ~a~n.align 16~n~a" name  (x86-to-string (append (map (lambda (b) (implement-tail-call b stack-size used-regs root-spills)) blocks) `((,name . ,main) (,(symb-append name 'conclusion) . ,conclusion)))))
+               )))))]))
+
 ;; print-x86 : x86 -> string
 (define (print-x86 p)
   (match p
+    [(ProgramDefs info ds)
+     (foldr string-append "" (map stringify-def ds))]
     [(Program info (CFG B-list)) (let [(stack-size (match-alist 'stack-size info))]
                                    (let [(used-regs (set->list (list->set (match-alist 'used-regs info))))]
                                      (let [(root-spills (match-alist 'root-stack-size info))]
@@ -889,7 +915,7 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
 (define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
                        (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
                        (func 1 2 3 4 5 6 7))
