@@ -39,6 +39,10 @@
   (cond [(list? type) (member '-> type)]
         [else #f]))
 
+(define (type-is-vector? type)
+  (cond [(list? type) (eq? (car type) 'Vector)]
+        [else #f]))
+
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
   (cond [(empty? plist) '(() . ())]
@@ -643,7 +647,8 @@
 
 (define (add-from-instr graph instr live-after types)
   (match instr
-    [(Callq 'collect) (for ([x live-after]) (if (list? (match-alist (Var x) types)) (for ([y caller-registers]) (add-edge! graph x y)) (for ([y (append caller-registers callee-registers)]) (add-edge! graph x y))))]
+    [(Callq 'collect) (for ([x live-after]) (if (type-is-vector? (match-alist (Var x) types)) (for ([y (append caller-registers callee-registers)]) (add-edge! graph x y)) (for ([y caller-registers]) (add-edge! graph x y))))]
+    [(IndirectCallq arg) (for ([x live-after]) (if (type-is-vector? (match-alist (Var x) types)) (for ([y (append caller-registers callee-registers)]) (add-edge! graph x y)) (for ([y caller-registers]) (add-edge! graph x y))))]
     [(Callq label) (for ([x live-after]) (for ([y caller-registers]) (add-edge! graph x y)))]
     [(Instr 'movq `(,(Var z) ,(Var y))) (for ([x live-after] #:when (and (not (equal? x y)) (not (equal? x z)))) (add-edge! graph x y))]
     [(Instr 'movq `(,(Var z) ,(Reg r))) #:when (not (eq? r 'rax)) (for ([x live-after] #:when (not (equal? x z))) (add-edge! graph x r))]
@@ -672,10 +677,16 @@
                 [`(,label . ,(Block info instrs)) (add-block-to-graph (graph-from-blist (cdr B-list) locals) instrs (cdr (match-alist 'live-afters info)) locals)])]))
                                                                              
 
+(define (build-from-def def)
+  (match def
+    [(Def name params rt info (CFG blocks))
+     (let [(igraph (graph-from-blist blocks (match-alist 'locals info)))]
+       (Def name '() rt (cons `(interference-graph . ,igraph) info) (CFG blocks)))]))
+  
 (define (build-interference p)
   (match p
-    [(Program info (CFG B-list))
-     (let [(igraph (graph-from-blist B-list (match-alist 'locals info)))] (Program (cons `(interference-graph . ,igraph) info) (CFG B-list)))]))
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map build-from-def ds))]))
 
 (define (extract-interference p)
   (match p
@@ -695,11 +706,11 @@
 (define (smallest-color ls n locals type)
   (if (<= n last-reg)
       (if (false? (rev-match-alist n ls)) n (smallest-color ls (add1 n) locals type))
-      (if (list? type) ;Assigns root-stack variables the same colors as regular stack vars
-          (if (andmap (lambda (var) (not (list? (match-alist var locals)))) (rev-match-alist-all n ls))
+      (if (type-is-vector? type) ;Assigns root-stack variables the same colors as regular stack vars
+          (if (andmap (lambda (var) (not (type-is-vector? (match-alist var locals)))) (rev-match-alist-all n ls))
               n
               (smallest-color ls (add1 n) locals type))
-          (if (andmap (lambda (var) (list? (match-alist var locals))) (rev-match-alist-all n ls))
+          (if (andmap (lambda (var) (type-is-vector? (match-alist var locals))) (rev-match-alist-all n ls))
               n
               (smallest-color ls (add1 n) locals type)))))
 
@@ -724,15 +735,19 @@
         [else (match (car homes)
                 [`(,var . ,(Deref r loc)) #:when(eq? reg r) (max (* -1 loc) (compute-stack-size (cdr homes) reg))]
                 [x (compute-stack-size (cdr homes) reg)])]))
- 
+
+(define (allocate-def def)
+  (match def
+    [(Def name params rt info (CFG blocks))
+     (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
+       (Def name params rt `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15)))
+            (CFG (map (lambda (x) (match x
+                                   [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks))))]))
+
 (define (allocate-registers p)
   (match p
-    [(Program info (CFG B-list))
-     (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
-       (Program `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15))) (CFG (map (lambda (x) (match x
-                                                                                                                                                                                             [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
-
-
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map allocate-def ds))]))
 
 (define (assign-nat n type)
   (cond [(<= n last-reg) (Reg (rev-match-alist n reg-colors))]
@@ -862,7 +877,7 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-compile (compose allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
 (define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
                        (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
                        (func 1 2 3 4 5 6 7))
