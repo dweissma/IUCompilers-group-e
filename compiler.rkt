@@ -755,7 +755,6 @@
         [else (Deref 'rbp (* (add1 (- n last-reg)) (- 8)))]
         ))
 
-
 (define (generate-assignments locals colors)
   (cond [(empty? locals) '()]
         [else (match (car locals)
@@ -765,11 +764,11 @@
   (match inst
     [(Var v) (match-alist v homes)]
     [(Instr inst args) (Instr inst (map (lambda (i) (assign-instr i homes)) args))]
+    [(TailJmp arg) (TailJmp (assign-instr arg homes))]
     [x x]))
 
 (define (assign-block instrs homes)
   (map (lambda (i) (assign-instr i homes)) instrs))
-
 
 ;; assign-homes : pseudo-x86 -> pseudo-x86 Deprecated in favor of allocate-registers
 (define (assign-homes p)
@@ -789,6 +788,12 @@
     [(Instr 'movzbq (list x y)) #:when (not (Reg? y))
                                 (list (Instr 'movzbq (list x (Reg 'rax)))
                                       (Instr 'movq (list (Reg 'rax) y)))]
+    [(Instr 'movq (list d1 d2)) #:when (equal? d1 d2) '()]
+    [(Instr 'leaq (list arg dest)) #:when (not (Reg? dest))
+                                   (list (Instr 'leaq (list arg (Reg 'rax)))
+                                         (Instr 'movq (list (Reg 'rax) dest)))]
+    [(TailJmp arg) (list (Instr 'movq (list arg (Reg 'rax)))
+                         (TailJmp (Reg 'rax)))]
     [(Instr e (list (Deref  reg off) (Deref reg2 off2)))
      (list (Instr 'movq (list (Deref reg off) (Reg 'rax)))
            (Instr e (list (Reg 'rax) (Deref reg2 off2))))]
@@ -799,8 +804,15 @@
     [(Block info exp) (Block '() (append-map do-patch exp))]
     ))
 
+(define (patch-def def)
+  (match def
+    [(Def name params rt info (CFG blocks))
+     (Def name params rt info (CFG (map (lambda (x) `(,(car x) . ,(patch (cdr x)))) blocks)))]))
+
 (define (patch-instructions p)
   (match p
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map patch-def ds))]
     [(Program info (CFG B-list))
      (Program info
               (CFG
