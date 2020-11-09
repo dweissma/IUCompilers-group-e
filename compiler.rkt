@@ -272,9 +272,9 @@
       (map (lambda (x n) (match x [`(,var : ,t) `(,var . ,n)])) (slice types 5 (length types)) (range (length (slice types 5 (length types)))))
       '()))
 
-(define (limit-exp exp vec vect-indices)
+(define (limit-exp exp vec vect-indices vec-type)
   (match exp
-    [(Var x) #:when (match-alist x vect-indices) (Prim 'vector-ref (list (Var vec) (Int (match-alist x vect-indices))))]
+    [(Var x) #:when (match-alist x vect-indices) (Prim 'vector-ref (list (HasType (Var vec) vec-type) (HasType (Int (match-alist x vect-indices)) 'Integer)))]
     [(Var x)
      (Var x)]
     [(FunRef x) #:when (match-alist x vect-indices) (Prim 'vector-ref (list (Var vec) (Int (match-alist x vect-indices))))]
@@ -282,24 +282,27 @@
     [(Int n) (Int n)]
     [(Bool bool) (Bool bool)]
     [(Let x e body)
-     (Let x (limit-exp e vec vect-indices) (limit-exp body vec vect-indices))]
+     (Let x (limit-exp e vec vect-indices vec-type) (limit-exp body vec vect-indices vec-type))]
     [(Prim op es)
-     (Prim op (for/list ([e es]) (limit-exp e vec vect-indices)))]
-    [(If cond exp else) (If (limit-exp cond vec vect-indices) (limit-exp exp vec vect-indices) (limit-exp else vec vect-indices))]
+     (Prim op (for/list ([e es]) (limit-exp e vec vect-indices vec-type)))]
+    [(If cond exp else) (If (limit-exp cond vec vect-indices vec-type) (limit-exp exp vec vect-indices vec-type) (limit-exp else vec vect-indices vec-type))]
     [(HasType (Apply (HasType f t) es) type) #:when (> (length es) 6)
-                  (HasType (Apply (HasType (limit-exp f vec vect-indices) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
-                         (append (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 0 5))
-                                 `(,(HasType (Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices)) (slice es 5 (length es)))) `(Vector ,@(slice t 5 (index-of t '->))))))) type)]
-    [(Apply f es) (Apply (limit-exp f vec vect-indices) (map (lambda (x) (limit-exp x vec vect-indices)) es))]
+                  (HasType (Apply (HasType (limit-exp f vec vect-indices vec-type) (append (slice t 0 5) `((Vector ,@(slice t 5 (index-of t '->)))) (slice t (index-of t '->) (length t))))
+                         (append (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 0 5))
+                                 `(,(HasType (Prim 'vector (map (lambda (x) (limit-exp x vec vect-indices vec-type)) (slice es 5 (length es)))) `(Vector ,@(slice t 5 (index-of t '->))))))) type)]
+    [(Apply f es) (Apply (limit-exp f vec vect-indices vec-type) (map (lambda (x) (limit-exp x vec vect-indices vec-type)) es))]
     [(HasType exp type)
-     (HasType (limit-exp exp vec vect-indices) type)]))
-  
+     (HasType (limit-exp exp vec vect-indices vec-type) type)]))
+
+(define (list-ref-safe ls n)
+  (if (>= n (length ls)) #f (list-ref ls n)))
+
 (define (limit-def def)
   (match def
     [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
      (define-values (vec types) (make-limited-list p:t*))
      (define vect-indices (get-vect-indices p:t*))
-     (define limited-body (limit-exp body vec vect-indices))
+     (define limited-body (limit-exp body vec vect-indices ((lambda (x) (match x [`(,y : ,t) t] [else #f])) (list-ref-safe types 5))))
      (Def name types rt info limited-body)]))
 
 
@@ -374,10 +377,16 @@
     [(HasType (Int n) t) (values (HasType (Int n) t) '())]
     [(HasType (Bool bool) t) (values (HasType (Bool bool) t) '())]
     [(HasType (Void) t) (values (HasType (Void) t) '())]
+    [(HasType (FunRef f) t)
+     (let [(tmp (gensym "tmp"))]
+       (values (HasType (Var tmp) t) `((,tmp . ,(HasType (FunRef f) t)))))]
     [(HasType (Let x e body) type)
      (let [(tmp (gensym "tmp"))]
        (begin (define-values (e-val e-alist) (rco-atom e))
               (values (HasType (Var tmp) type) (append e-alist  `((,tmp . ,(HasType (Let x e-val (rco-exp body)) type)))))))]
+    [(HasType (Apply f es) type)
+     (let [(tmp (gensym "tmp")) (exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))]
+       (values (HasType (Var tmp) type) (append (cdr exps) `((,tmp . ,(HasType (Apply f (car exps)) type))))))]
     [(HasType (Prim op es) type)
      (let [(tmp (gensym "tmp")) (exps (split-pairs (for/list ([e es]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))]
        (values (HasType (Var tmp) type) (append (cdr exps) `((,tmp . ,(HasType (Prim op (car exps)) type))))))]
@@ -398,6 +407,9 @@
     [(Int n) (Int n)]
     [(Bool bool) (Bool bool)]
     [(Void) (Void)]
+    [(FunRef f) (FunRef f)]
+    [(HasType (Apply f es) type)
+     (let [(exps (split-pairs (for/list ([e (cons f es)]) (begin (define-values (var alist) (rco-atom e)) `(,var . ,alist)))))] (expand-alist (cdr exps) (Apply (car (car exps)) (cdr (car exps))) type))]
     [(Let x e body)
      (begin (define e-val (rco-exp e))
             (Let x e-val (rco-exp body)))]
@@ -418,11 +430,16 @@
      (Allocate n type)]
     ))
 
+(define (rco-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (Def name p:t* rt info (rco-exp body))]))
+
 ;; remove-complex-opera* : R1 -> R1
 (define (remove-complex-opera* p)
   (match p
-    [(Program info e)
-     (Program info (rco-exp e))]
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map rco-def ds))]
     ))
 
 
@@ -430,6 +447,7 @@
 (define (do-assignment exp var tail)
   (match exp
     [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]
+    [(HasType (Call f es) t) (Seq (Assign var (HasType (Call f es) t)) tail)]
     [(Return (HasType x t)) (Seq (Assign var (HasType x t)) tail)]
     ))
 
@@ -444,6 +462,7 @@
     [(HasType (Let x exp body) t) (begin (define-values (exp-body body-vars body-graph) (explicate-assign body var tail cgraph))
                                          (define-values (body-tail vars newgraph) (explicate-assign exp (Var x) exp-body body-graph))
                                          (values body-tail (cons (Var x) (remove-duplicates (append body-vars vars))) newgraph))]
+    [(HasType (Apply f es) t) (values (do-assignment (HasType (Call f es) t) var tail) '() cgraph)]
     [x (begin (define-values (exp-tail exp-vars exp-graph) (explicate-tail exp cgraph))
               (values (do-assignment exp-tail var tail) exp-vars exp-graph))
        ]))
@@ -460,6 +479,10 @@
     [(HasType (Prim 'vector-ref (list vect int)) t)
      (let ([temp (gensym "tmp")] [then-lbl (gensym "block")] [else-lbl (gensym "block")])
        (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Prim 'vector-ref (list vect int)) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
+                                                                                                                                                                                                                                                           (cons `(,else-lbl . ,false-blk) cgraph))))
+       (values tail vars assigned-cgraph))]
+    [(HasType (Apply f es) t)  (let ([temp (gensym "tmp")] [then-lbl (gensym "block")] [else-lbl (gensym "block")])
+       (define-values (tail vars assigned-cgraph) (explicate-assign (HasType (Apply f es) t) (Var temp) (IfStmt (Prim 'eq? (list (HasType (Var temp) 'Boolean) (HasType (Bool #t) 'Boolean))) (Goto then-lbl) (Goto else-lbl)) (cons `(,then-lbl . ,true-blk)
                                                                                                                                                                                                                                                            (cons `(,else-lbl . ,false-blk) cgraph))))
        (values tail vars assigned-cgraph))]
     [(HasType (Prim cmp es) t) (let ([then-lbl (gensym "block")] [else-lbl (gensym "block")])
@@ -498,13 +521,21 @@
      (values (Return (HasType (GlobalValue name) t)) '() cgraph)]
     [(HasType (Allocate n type) t)
      (values (Return (HasType (Allocate n type) t)) '() cgraph)]
+    [(HasType (FunRef f) t) (values (Return (HasType (FunRef f) t)) '() cgraph)]
+    [(HasType (Apply f es) t) (values (TailCall f es) '() cgraph)]
     ))
+
+(define (explicate-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (begin (define-values (tail vars graph) (explicate-tail body '()))
+            (Def name p:t* rt `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]))
 
 ;; explicate-control : R2 -> C1
 (define (explicate-control p)
   (match p
-    [(Program info e)
-     (begin (define-values (tail vars graph) (explicate-tail e '())) (Program `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map explicate-def ds))];(begin (define-values (tail vars graph) (explicate-tail e '())) (Program `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]
     ))
 
 (define (uncover-block tail)
@@ -513,11 +544,17 @@
      (cons `(,var . ,type) (uncover-block t))]
     [x '()]))
 
+(define (uncover-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info (CFG blocks))
+     (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) blocks))])
+       (Def name p:t* rt `((locals . ,(append xs locals))) (CFG blocks)))]))
+
+  
 (define (uncover-locals p)
   (match p
-    [(Program info (CFG B-list))
-     (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) B-list))])
-       (Program `((locals . ,locals)) (CFG B-list)))]));(map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x))))) B-list)))
+    [(ProgramDefs info ds)
+     (ProgramDefs info (map uncover-def ds))]));(let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) B-list))]) (Program `((locals . ,locals)) (CFG B-list)))
      
 
 (define (calculate-tag types t-len)
@@ -872,7 +909,7 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-compile (compose uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
 (define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
                        (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
                        (func 1 2 3 4 5 6 7))
