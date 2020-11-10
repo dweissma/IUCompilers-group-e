@@ -84,6 +84,10 @@
   (if (eq? first-in first-out) '()
       (if (zero? first-in) (cons (car ls) (slice (cdr ls) first-in (sub1 first-out)))
           (slice (cdr ls) (sub1 first-in) (sub1 first-out)))))
+
+;Replace illegal characters with sequences of characters no sane person would have in their function name
+(define (make-legal-label lbl)
+  (label-name (string->symbol (string-replace (symbol->string lbl) "-" "__qzx")))) 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1036,14 +1040,14 @@
     [(Reg x) (format "%~a" x)]
     [(ByteReg reg) (format "%~a" reg)]
     [(Deref reg loc) (format "~a(%~a)" loc reg)]
-    [(FunRef lbl) (format "~a(%rip)" (label-name lbl))]
-    [(Global var) (format "~a(%rip)" (label-name var))]))
+    [(FunRef lbl) (format "~a(%rip)" (make-legal-label lbl))]
+    [(Global var) (format "~a(%rip)" (make-legal-label var))]))
 
 (define (stringify-instr instr)
   (match instr
-    [(Callq label) (format "\tcallq ~a\n" (label-name label))]
-    [(Jmp label) (format "\tjmp ~a\n" (label-name label))]
-    [(JmpIf cc label) (format "\t j~a ~a\n" cc (label-name label))]
+    [(Callq label) (format "\tcallq ~a\n" (make-legal-label label))]
+    [(Jmp label) (format "\tjmp ~a\n" (make-legal-label label))]
+    [(JmpIf cc label) (format "\t j~a ~a\n" cc (make-legal-label label))]
     [(Instr 'set (list cc arg)) (format "\t set~a ~a\n" cc (stringify-ref arg))]
     [(Instr name regs) (format "\t~a ~a\n" name (string-join (map stringify-ref regs) ", "))]
     [(Retq) (format "\tretq \n")]
@@ -1055,7 +1059,7 @@
 
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
-  (format "~a:~n~a" (label-name label) (match block
+  (format "~a:~n~a" (make-legal-label label) (match block
                                          ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
 
 ;;Converts an alist of labeled x86 blocks to their string representation
@@ -1085,7 +1089,7 @@
          (let [(root-spills (match-alist 'root-stack-size info))]
            (let [(main (make-main stack-size used-regs root-spills name))]
              (let [(conclusion (make-conclusion stack-size used-regs root-spills))]
-               (format ".globl ~a~n.align 16~n~a" name  (x86-to-string (append (map (lambda (b) (implement-tail-call b stack-size used-regs root-spills)) blocks) `((,name . ,main) (,(symb-append name 'conclusion) . ,conclusion)))))
+               (format ".globl ~a~n.align 16~n~a" (make-legal-label name)  (x86-to-string (append (map (lambda (b) (implement-tail-call b stack-size used-regs root-spills)) blocks) `((,name . ,main) (,(symb-append name 'conclusion) . ,conclusion)))))
                )))))]))
 
 ;; print-x86 : x86 -> string
