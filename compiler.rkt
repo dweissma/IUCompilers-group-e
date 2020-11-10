@@ -4,7 +4,7 @@
 (require "interp-R0.rkt")
 (require "interp-R1.rkt")
 (require "interp.rkt")
-(require "type-check-R4.rkt")
+(require (only-in "type-check-R2.rkt" type-check-op type-equal?))
 (require "utilities.rkt")
 (provide (all-defined-out))
 (require graph)
@@ -88,6 +88,188 @@
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (type-check-apply env e es)
+  (define-values (e^ ty) ((type-check-exp env) e))
+  (define-values (e* ty*) (for/lists (e* ty*) ([e (in-list es)])
+                            ((type-check-exp env) e)))
+  (match ty
+    [`(,ty^* ... -> ,rt)
+     (for ([arg-ty ty*] [param-ty ty^*])
+       (unless (type-equal? arg-ty param-ty)
+         (error "type error: argument/parameter mismatch: ~a != ~a"
+                arg-ty param-ty e es)))
+     (values e^ e* rt)]
+    [else (error "type error: expected a function, not" ty)]))
+
+(define (type-check-exp env)
+  (lambda (e)
+    (define-values (exp t) ((type-check-exp2 env) e))
+    (match exp
+      [(HasType e type) (if (type-equal? type t) (values (HasType e type) type) (error "type error HasType does not match type"))]
+      [else (values (HasType exp t) t)])))
+
+(define (type-check-exp2 env)
+  (lambda (e)
+    (define recur (type-check-exp env))
+    (match e
+      [(Var x)
+       (let ([t (dict-ref env x)])
+         (values (Var x) t))]
+      [(Int n) (values (Int n) 'Integer)]
+      [(Bool b) (values (Bool b) 'Boolean)]
+      [(Let x e body)
+       (define-values (e^ Te) (recur e))
+       (define-values (b Tb) ((type-check-exp (cons `(,x . ,Te) env)) body))
+       (values (Let x e^ b) Tb)]
+      [(If cnd thn els)
+       (define-values (c Tc) (recur cnd))
+       (define-values (t Tt) (recur thn))
+       (define-values (e Te) (recur els))
+       (unless (type-equal? Tc 'Boolean)
+         (error 'type-check-exp
+                "expected condition of if to have type Boolean, not ~a" Tc))
+       (unless (type-equal? Tt Te)
+         (error "branches of if must have the same type, but are not"
+                (list Tt Te)))
+       (values (If c t e) Te)]
+      [(Prim 'eq? (list e1 e2))
+       (define-values (e1^ T1) (recur e1))
+       (define-values (e2^ T2) (recur e2))
+       (unless (type-equal? T1 T2)
+         (error "arguments of eq? must have the same type, but are not"
+                (list T1 T2)))
+       (values (Prim 'eq? (list e1^ e2^)) 'Boolean)]
+      [(Void) (values (Void) 'Void)]
+      [(Prim 'vector es)
+       (define-values (e* t*) (for/lists (e* t*) ([e es])
+                                (recur e)))
+       (let ([t `(Vector ,@t*)])
+         (values (HasType (Prim 'vector e*) t) t))]
+      [(Prim 'vector-length (list e))
+       (define-values (e^ t) (recur e))
+       (match t
+         [`(Vector ,ts ...)
+          (values (Prim 'vector-length (list e^))  'Integer)]
+         [else (error 'type-check-exp
+                      "expected a vector in vector-lenfth, not ~a" t)])]
+      [(Prim 'vector-ref (list e (Int i)))
+       (define-values (e^ t) (recur e))
+       (match t
+         [`(Vector ,ts ...)
+          (unless (and (exact-nonnegative-integer? i) (< i (length ts)))
+            (error 'type-check-exp "invalid index ~a" i))
+          (let ([t (list-ref ts i)])
+            (values
+             (Prim 'vector-ref (list e^ (Int i)))
+             t))]
+         [else (error 'type-check-exp
+                      "expected a vector in vector-ref, not ~a" t)])]
+      [(Prim 'vector-set! (list e (Int i) arg) )
+       (define-values (e-vec t-vec) (recur e))
+       (define-values (e-arg^ t-arg) (recur arg))
+       (match t-vec
+         [`(Vector ,ts ...)
+          (unless (and (exact-nonnegative-integer? i)
+                       (i . < . (length ts)))
+            (error 'type-check-exp "invalid index ~a" i))
+          (unless (type-equal? (list-ref ts i) t-arg)
+            (error 'type-check-exp "type mismatch in vector-set! ~a ~a" 
+                   (list-ref ts i) t-arg))
+          (values (Prim 'vector-set! (list e-vec (Int i) e-arg^))
+                  'Void)]
+         [else (error 'type-check-exp
+                      "expected a vector in vector-set!, not ~a"
+                      t-vec)])]
+      [(Prim 'eq? (list arg1 arg2))
+       (define-values (e1 t1) (recur arg1))
+       (define-values (e2 t2) (recur arg2))
+       (match* (t1 t2)
+         [(`(Vector ,ts1 ...) `(Vector ,ts2 ...))
+          ;; allow comparison of vectors of different element types
+          (void)]
+         [(other wise)
+          (unless (type-equal? t1 t2)
+            (error 'type-check-exp
+                   "type error: different argument types of eq?: ~a != ~a"
+                   t1 t2))])
+       (values (Prim 'eq? (list e1 e2)) 'Boolean)]
+      [(Prim op es)
+       (define-values (new-es ts)
+         (for/lists (new-es ts) ([e es])
+           (recur e)))
+       (define t-ret (type-check-op op ts))
+       (values (Prim op new-es) t-ret)]
+      [(HasType (Prim 'vector es) t)
+       ((type-check-exp env) (Prim 'vector es))]
+      [(HasType e t)
+       (define-values (e^ t^) (recur e))
+       (unless (type-equal? t t^)
+         (error 'type-check-exp "type mismatch in HasType" t t^))
+       (values (e^ t))]
+      [(GlobalValue name)
+       (values (GlobalValue name) 'Integer)]
+      [(Allocate size t)
+       (values (Allocate size t) t)]
+      [(Collect size)
+       (values (Collect size) 'Void)]
+      [(FunRef f)
+       (let ([t (dict-ref env f)])
+         (values (FunRef f) t))]
+      [(Apply e es)
+       (define-values (e^ es^ rt) (type-check-apply env e es))
+       (values (Apply e^ es^) rt)]
+      [(Call e es)
+       (define-values (e^ es^ rt) (type-check-apply env e es))
+       (values (Call e^ es^) rt)]
+      [else 
+       (error 'type-check-exp "R4/unmatched ~a" e)]
+      ))
+    )
+
+(define (type-check-def env)
+  (lambda (e)
+    (match e
+      [(Def f (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+       (define new-env (append (map cons xs ps) env))
+       (define-values (body^ ty^) ((type-check-exp new-env) body))
+       (unless (type-equal? ty^ rt)
+         (error "body type ~a and return type ~a mismatch for ~a"
+                ty^ rt e))
+       (Def f p:t* rt info body^)]
+      [else (error 'type-check-def "ill-formed function definition ~a" e)]
+      )))	 
+
+(define (fun-def-type d)
+  (match d
+    [(Def f (list `[,xs : ,ps] ...) rt info body)  `(,@ps -> ,rt)]
+    [else (error 'fun-def-type "ill-formed function definition in ~a" d)]))
+
+(define (type-check-R4 e)
+  (match e
+    [(ProgramDefs info ds)
+     (define new-env (for/list ([d ds]) 
+                       (cons (Def-name d) (fun-def-type d))))
+     (define ds^ (for/list ([d ds])
+                   ((type-check-def new-env) d)))
+     ;; TODO: check that main has Integer return type.
+     (ProgramDefs info ds^)]
+    [(ProgramDefsExp info ds body)
+     (define new-env (for/list ([d ds]) 
+                       (cons (Def-name d) (fun-def-type d))))
+     (define ds^ (for/list ([d ds])
+                   ((type-check-def new-env) d)))
+     (define-values (body^ ty) ((type-check-exp new-env) body))
+     (unless (type-equal? ty 'Integer)
+       (error "result of the program must be an integer, not " ty))
+     (ProgramDefsExp info ds^ body^)]
+    [(Program info body)
+     (define-values (body^ ty) ((type-check-exp '()) body))
+     (unless (type-equal? ty 'Integer)
+       (error "result of the program must be an integer, not " ty))
+     (define result (ProgramDefsExp info '() body^))
+     result]
+    [else
+     (error 'type-check "couldn't match" e)]))
 
 (define (type-check p)
   (type-check-R4 p)) ;Note type-check-R4 was modified slightly to correctly insert HasTypes
@@ -465,7 +647,7 @@
   (match def
     [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
      (begin (define-values (tail vars graph) (explicate-tail body '()))
-            (Def name p:t* rt `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]))
+            (Def name p:t* rt `((locals . ,vars)) (cons `(,(symb-append name 'start) . ,tail) graph)))]))
 
 ;; explicate-control : R2 -> C1
 (define (explicate-control p)
@@ -482,9 +664,9 @@
 
 (define (uncover-def def)
   (match def
-    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info (CFG blocks))
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info blocks)
      (let ([locals (remove-duplicates (append-map (lambda (x) (uncover-block (cdr x))) blocks))])
-       (Def name p:t* rt `((locals . ,(append (map (lambda (v t) (cons (Var v) t)) xs ps) locals))) (CFG blocks)))]))
+       (Def name p:t* rt `((locals . ,(append (map (lambda (v t) (cons (Var v) t)) xs ps) locals))) blocks))]))
 
   
 (define (uncover-locals p)
@@ -566,10 +748,10 @@
 
 (define (select-def def)
   (match def
-    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info (CFG blocks))
-     (Def name '() rt info (CFG
-                            (cons `(,(symb-append name (car (car blocks))) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
-                                  (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks))))))]))
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info blocks)
+     (Def name '() rt (cons `(num-params . ,(length xs)) info)
+                            (cons `(,(car (car blocks)) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
+                                  (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks)))))]))
 
 (define (select-instructions p)
   (match p
@@ -613,10 +795,10 @@
 
 (define (uncover-live-def def)
   (match def
-    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info (CFG blocks))
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info blocks)
      (let ([g (CFG->graph (CFG blocks) name)])
        (let ([ordering (tsort (transpose g))])
-         (Def name '() rt info (CFG (do-lives blocks ordering g '())))))]))
+         (Def name '() rt info (do-lives blocks ordering g '()))))]))
 
 (define (uncover-live p)
   (match p
@@ -679,9 +861,9 @@
 
 (define (build-from-def def)
   (match def
-    [(Def name params rt info (CFG blocks))
+    [(Def name params rt info blocks)
      (let [(igraph (graph-from-blist blocks (match-alist 'locals info)))]
-       (Def name '() rt (cons `(interference-graph . ,igraph) info) (CFG blocks)))]))
+       (Def name '() rt (cons `(interference-graph . ,igraph) info) blocks))]))
   
 (define (build-interference p)
   (match p
@@ -738,11 +920,11 @@
 
 (define (allocate-def def)
   (match def
-    [(Def name params rt info (CFG blocks))
+    [(Def name params rt info blocks)
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
-       (Def name params rt `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15)))
-            (CFG (map (lambda (x) (match x
-                                    [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks))))]))
+       (Def name params rt `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15)) ,@info)
+            (map (lambda (x) (match x
+                                    [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks)))]))
 
 (define (allocate-registers p)
   (match p
@@ -775,7 +957,7 @@
   (match p
     [(Program info (CFG B-list))
      (let [(homes (generate-assignments (match-alist 'locals info) -8))]
-       (Program `((stack-size . ,(- (let [(size (last-value homes))] (if (false? size) 0 (cdr size)))))) (CFG (map (lambda (x) (match x
+       (Program `((stack-size . ,(- (let [(size (last-value homes))] (if (false? size) 0 (cdr size))))) ,@info) (CFG (map (lambda (x) (match x
                                                                                                                                  [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
 (define (do-patch  instruction)
@@ -806,8 +988,8 @@
 
 (define (patch-def def)
   (match def
-    [(Def name params rt info (CFG blocks))
-     (Def name params rt info (CFG (map (lambda (x) `(,(car x) . ,(patch (cdr x)))) blocks)))]))
+    [(Def name params rt info blocks)
+     (Def name params rt info (map (lambda (x) `(,(car x) . ,(patch (cdr x)))) blocks))]))
 
 (define (patch-instructions p)
   (match p
@@ -893,7 +1075,7 @@
 
 (define (stringify-def def)
   (match def
-    [(Def name params rt info (CFG blocks))
+    [(Def name params rt info blocks)
      (let [(stack-size (match-alist 'stack-size info))]
        (let [(used-regs (set->list (list->set (match-alist 'used-regs info))))]
          (let [(root-spills (match-alist 'root-stack-size info))]
@@ -915,8 +1097,7 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
-(define test-program '((define (add [x : Integer] [y : Integer]) : Integer (+ x y))
-                       (define (func [a1 : Integer] [a2 : Integer] [a3 : Integer] [a4 : Integer] [a5 : Integer] [a6 : Integer] [a7 : Integer]) : Integer a7)
-                       (func 1 2 3 4 5 6 7))
+(define test-compile (compose type-check parse-program (lambda (x) `(program () ,@x)))) ;(compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-program '((let ([x #t])
+  42))
   )
