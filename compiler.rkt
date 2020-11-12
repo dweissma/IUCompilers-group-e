@@ -682,7 +682,7 @@
       (bitwise-ior (arithmetic-shift (if (list? (car types)) 1 0) (+ (length types) 6))
                    (calculate-tag (cdr types) t-len))))
 
-(define arg-regs '(rdi rsi rdx rcx r8 r9))
+(define arg-regs  '(rcx rdx rdi rsi r8 r9))
 
 (define (slct-atom e)
   (match e
@@ -1013,7 +1013,7 @@
         ,(Callq 'initialize)
         ,(Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
         ,@(map (lambda (n) (Instr 'movq (list (Imm 0) (Deref 'r15 n)))) (all-ints 0 (add1 root-spills) 8))
-        ,(Instr 'addq (list (Imm root-spills) (Reg 'r15)))))
+        ))
 
 ;; generates an x86 representation of the main clause
 (define (make-main stack-size used-regs root-spills name)
@@ -1022,7 +1022,7 @@
                                   [(Reg x) (index-of callee-registers x)]
                                   [x false]))
                               used-regs)])
-    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (if (eq? name 'main) (initialize-garbage-collector root-spills) '()) (list  (Jmp (symb-append name 'start)))))))
+    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (if (eq? name 'main) (initialize-garbage-collector root-spills) '()) (list (Instr 'addq (list (Imm root-spills) (Reg 'r15)))) (list  (Jmp (symb-append name 'start)))))))
 
 ;; generates an x86 representation of the conclusion
 
@@ -1032,7 +1032,7 @@
                                 [(Reg x) (index-of callee-registers x)]
                                 [x false]))
                             used-regs)])
-    (Block '() (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15))) (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) (Retq)))))))
+    (Block '() (pop-frame stack-size used-regs root-spills (Retq)))))
 
 (define (stringify-ref ref)
   (match ref
@@ -1072,7 +1072,7 @@
                                 [(Reg x) (index-of callee-registers x)]
                                 [x false]))
                             used-regs)])
-    (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15))) (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) tail)))))
+    (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15)))) (list  (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) tail)))))
 
 (define (implement-tail-call block stack-size used-regs root-spills)
   (match block
@@ -1106,5 +1106,14 @@
                                            )))))]))
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
-(define test-program '((define (id [x : Integer]) : Integer x)
-(id 42)))
+(define test-program '((define (f [x : Integer]) : Integer
+  (if (eq? x 0) 0
+      (if (eq? x 1) 1
+          (+ (f (- x 1)) (f (- x 2))))))
+
+(define (g [x : Integer] [y : Integer] [z : Integer]) : Integer
+  (if (eq? x 0) y
+      (if (eq? x 1) z
+          (g (- x 1) z (+ y z)))))
+
+(+ (f 8) (g 8 0 1))))
