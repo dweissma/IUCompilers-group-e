@@ -55,14 +55,14 @@
           (string=? r (car (string-split p "_"))))
         all-tests)))
 
-(interp-tests "r1" type-check-R4 r4-passes interp-R4 "r1" (tests-for "r1"))
-(compiler-tests "r1" type-check-R4 r4-passes "r1" (tests-for "r1"))
+;(interp-tests "r1" type-check-R4 r4-passes interp-R4 "r1" (tests-for "r1"))
+;(compiler-tests "r1" type-check-R4 r4-passes "r1" (tests-for "r1"))
 
-(interp-tests "r2" type-check-R4 r4-passes interp-R4 "r2" (tests-for "r2"))
-(compiler-tests "r2" type-check-R4 r4-passes "r2" (tests-for "r2"))
+;(interp-tests "r2" type-check-R4 r4-passes interp-R4 "r2" (tests-for "r2"))
+;(compiler-tests "r2" type-check-R4 r4-passes "r2" (tests-for "r2"))
 
-(interp-tests "r3" type-check-R4 r4-passes interp-R4 "r3" (tests-for "r3"))
-(compiler-tests "r3" type-check-R4 r4-passes "r3" (tests-for "r3"))
+;(interp-tests "r3" type-check-R4 r4-passes interp-R4 "r3" (tests-for "r3"))
+;(compiler-tests "r3" type-check-R4 r4-passes "r3" (tests-for "r3"))
 
-(interp-tests "r4" type-check-R4 r4-passes interp-R4 "r4" (tests-for "r4"))
+;(interp-tests "r4" type-check-R4 r4-passes interp-R4 "r4" (tests-for "r4"))
 (compiler-tests "r4" type-check-R4 r4-passes "r4" (tests-for "r4"))
