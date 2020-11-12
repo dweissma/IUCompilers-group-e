@@ -7,7 +7,6 @@
 
 # generated files
 *.o
-*.s
 *.out
 *~
 
