@@ -228,7 +228,7 @@
       [else 
        (error 'type-check-exp "R4/unmatched ~a" e)]
       ))
-    )
+  )
 
 (define (type-check-def env)
   (lambda (e)
@@ -275,7 +275,7 @@
     [else
      (error 'type-check "couldn't match" e)]))
 
- ;Note type-check-R4 was modified slightly to correctly insert HasTypes
+;Note type-check-R4 was modified slightly to correctly insert HasTypes
 
 (define (shrink-exp e)
   (match e
@@ -754,8 +754,8 @@
   (match def
     [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info blocks)
      (Def name '() rt (cons `(num-params . ,(length xs)) info)
-                            (cons `(,(car (car blocks)) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
-                                  (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks)))))]))
+          (cons `(,(car (car blocks)) . ,(Block '() (append (map (lambda (var reg) (Instr 'movq (list (Reg reg) (Var var)))) xs (slice arg-regs 0 (length xs))) (slct-tail (cdr (car blocks)) name))))
+                (append (map (lambda (x) `(,(car x) . ,(Block '() (slct-tail (cdr x) name)))) (cdr blocks)))))]))
 
 (define (select-instructions p)
   (match p
@@ -931,7 +931,7 @@
      (let [(homes (generate-assignments (match-alist 'locals info) (color-graph (preprocess-graph (match-alist 'interference-graph info)) (match-alist 'locals info))))]
        (Def name params rt `((stack-size . ,(compute-stack-size homes 'rbp)) (used-regs . ,(filter Reg? (map cdr homes))) (root-stack-size . ,(compute-stack-size homes 'r15)) ,@info)
             (map (lambda (x) (match x
-                                    [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks)))]))
+                               [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) blocks)))]))
 
 (define (allocate-registers p)
   (match p
@@ -966,7 +966,7 @@
     [(Program info (CFG B-list))
      (let [(homes (generate-assignments (match-alist 'locals info) -8))]
        (Program `((stack-size . ,(- (let [(size (last-value homes))] (if (false? size) 0 (cdr size))))) ,@info) (CFG (map (lambda (x) (match x
-                                                                                                                                 [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
+                                                                                                                                        [`(,label . ,(Block info instrs)) `(,label . ,(Block info (assign-block instrs homes)))])) B-list))))]))
 
 (define (do-patch  instruction)
   (match instruction
@@ -1014,13 +1014,16 @@
         ,(Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
         ))
 
+(define (get-extra-pushes used-regs)
+  (filter (lambda (reg)
+            (match reg
+              [(Reg x) (index-of callee-registers x)]
+              [x false]))
+          used-regs))
+
 ;; generates an x86 representation of the main clause
 (define (make-main stack-size used-regs root-spills name)
-  (let ([extra-pushes (filter (lambda (reg)
-                                (match reg
-                                  [(Reg x) (index-of callee-registers x)]
-                                  [x false]))
-                              used-regs)])
+  (let ([extra-pushes (get-extra-pushes used-regs)])
     (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))))
                        (map (lambda (x) (Instr 'pushq (list x))) extra-pushes)
                        (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp))))
@@ -1032,11 +1035,7 @@
 ;; generates an x86 representation of the conclusion
 
 (define (make-conclusion stack-size used-regs root-spills)
-  (let ([extra-pops (filter (lambda (reg)
-                              (match reg
-                                [(Reg x) (index-of callee-registers x)]
-                                [x false]))
-                            used-regs)])
+  (let ([extra-pops (get-extra-pushes used-regs)])
     (Block '() (pop-frame stack-size used-regs root-spills (Retq)))))
 
 (define (stringify-ref ref)
@@ -1065,26 +1064,22 @@
 ;;Turns a block and its label into a string
 (define (stringify-block label block)
   (format "~a:~n~a" (make-legal-label label) (match block
-                                         ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
+                                               ([Block info instrs] (foldr (lambda (x rs) (string-append (stringify-instr x) rs)) "" instrs)))))
 
 ;;Converts an alist of labeled x86 blocks to their string representation
 (define (x86-to-string blocks)
   (foldr (lambda (x rs) (string-append (stringify-block (car x) (cdr x)) rs)) "" blocks))
 
 (define (pop-frame stack-size used-regs root-spills tail)
-  (let ([extra-pops (filter (lambda (reg)
-                              (match reg
-                                [(Reg x) (index-of callee-registers x)]
-                                [x false]))
-                            used-regs)])
+  (let ([extra-pops (get-extra-pushes used-regs)])
     (append (list (Instr 'subq (list (Imm root-spills) (Reg 'r15)))) (list  (Instr 'addq (list (Imm (let ([push-bytes (* 8 (length extra-pops))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (append (map (lambda (x) (Instr 'popq (list x))) extra-pops) (list (Instr 'popq (list (Reg 'rbp))) tail)))))
 
 (define (implement-tail-call block stack-size used-regs root-spills)
   (match block
     [`(,lbl . ,(Block info instrs)) (if (TailJmp? (last-value instrs))
-                             `(,lbl . ,(Block info (append (slice instrs 0 (sub1 (length instrs)))
-                                                 (pop-frame stack-size used-regs root-spills (last-value instrs)))))
-                             `(,lbl . ,(Block info instrs)))]))
+                                        `(,lbl . ,(Block info (append (slice instrs 0 (sub1 (length instrs)))
+                                                                      (pop-frame stack-size used-regs root-spills (last-value instrs)))))
+                                        `(,lbl . ,(Block info instrs)))]))
 
 (define (stringify-def def)
   (match def
@@ -1112,13 +1107,13 @@
 
 (define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
 (define test-program '((define (f [x : Integer]) : Integer
-  (if (eq? x 0) 0
-      (if (eq? x 1) 1
-          (+ (f (- x 1)) (f (- x 2))))))
+                         (if (eq? x 0) 0
+                             (if (eq? x 1) 1
+                                 (+ (f (- x 1)) (f (- x 2))))))
 
-(define (g [x : Integer] [y : Integer] [z : Integer]) : Integer
-  (if (eq? x 0) y
-      (if (eq? x 1) z
-          (g (- x 1) z (+ y z)))))
+                       (define (g [x : Integer] [y : Integer] [z : Integer]) : Integer
+                         (if (eq? x 0) y
+                             (if (eq? x 1) z
+                                 (g (- x 1) z (+ y z)))))
 
-(+ (f 8) (g 8 0 1))))
+                       (+ (f 8) (g 8 0 1))))
