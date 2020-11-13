@@ -682,7 +682,7 @@
       (bitwise-ior (arithmetic-shift (if (list? (car types)) 1 0) (+ (length types) 6))
                    (calculate-tag (cdr types) t-len))))
 
-(define arg-regs  '(rcx rdx rdi rsi r8 r9))
+(define arg-regs  (vector->list arg-registers))
 
 (define (slct-atom e)
   (match e
@@ -1012,7 +1012,6 @@
         ,(Instr 'movq (list (Imm heap-size) (Reg 'rsi)))
         ,(Callq 'initialize)
         ,(Instr 'movq (list (Global 'rootstack_begin) (Reg 'r15)))
-        ,@(map (lambda (n) (Instr 'movq (list (Imm 0) (Deref 'r15 n)))) (all-ints 0 (add1 root-spills) 8))
         ))
 
 ;; generates an x86 representation of the main clause
@@ -1022,7 +1021,13 @@
                                   [(Reg x) (index-of callee-registers x)]
                                   [x false]))
                               used-regs)])
-    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp)))) (map (lambda (x) (Instr 'pushq (list x))) extra-pushes) (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp)))) (if (eq? name 'main) (initialize-garbage-collector root-spills) '()) (list (Instr 'addq (list (Imm root-spills) (Reg 'r15)))) (list  (Jmp (symb-append name 'start)))))))
+    (Block '() (append (list (Instr 'pushq (list (Reg 'rbp))) (Instr 'movq (list (Reg 'rsp) (Reg 'rbp))))
+                       (map (lambda (x) (Instr 'pushq (list x))) extra-pushes)
+                       (list (Instr 'subq (list (Imm (let ([push-bytes (* 8 (length extra-pushes))]) (- (round-stack-to-16 (+ push-bytes stack-size)) push-bytes))) (Reg 'rsp))))
+                       (if (eq? name 'main) (initialize-garbage-collector root-spills) '())
+                       (map (lambda (n) (Instr 'movq (list (Imm 0) (Deref 'r15 n)))) (all-ints 0 (add1 root-spills) 8))
+                       (list (Instr 'addq (list (Imm root-spills) (Reg 'r15))))
+                       (list  (Jmp (symb-append name 'start)))))))
 
 ;; generates an x86 representation of the conclusion
 
