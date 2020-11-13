@@ -1,88 +1,91 @@
 .globl f
 .align 16
-block140281:
-	leaq f(%rip), %rdx
+block89360:
+	leaq f(%rip), %rcx
 	movq $1, %rsi
 	negq %rsi
-	movq %rbx, %rcx
-	addq %rsi, %rcx
-	callq *%rdx
+	movq %r12, %rdx
+	addq %rsi, %rdx
+	movq %rdx, %rdi
+	callq *%rcx
 	movq %rax, %r13
-	leaq f(%rip), %rdx
-	movq $2, %rcx
-	negq %rcx
-	movq %rbx, %rsi
-	addq %rcx, %rsi
-	movq %rsi, %rcx
-	callq *%rdx
+	leaq f(%rip), %rcx
+	movq $2, %rdx
+	negq %rdx
+	movq %r12, %rsi
+	addq %rdx, %rsi
+	movq %rsi, %rdi
+	callq *%rcx
 	movq %rax, %rcx
 	movq %r13, %rax
 	addq %rcx, %rax
 	jmp fconclusion
-block140280:
+block89359:
 	movq $1, %rax
 	jmp fconclusion
-block140283:
-	cmpq $1, %rbx
-	 je block140280
-	jmp block140281
-block140282:
+block89362:
+	cmpq $1, %r12
+	 je block89359
+	jmp block89360
+block89361:
 	movq $0, %rax
 	jmp fconclusion
 fstart:
-	movq %rcx, %rbx
-	cmpq $0, %rbx
-	 je block140282
-	jmp block140283
+	movq %rdi, %r12
+	cmpq $0, %r12
+	 je block89361
+	jmp block89362
 f:
 	pushq %rbp
 	movq %rsp, %rbp
-	pushq %rbx
+	pushq %r12
 	pushq %r13
 	subq $0, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp fstart
 fconclusion:
 	subq $0, %r15
 	addq $0, %rsp
-	popq %rbx
+	popq %r12
 	popq %r13
 	popq %rbp
 	retq 
 .globl g
 .align 16
-block140286:
+block89365:
+	movq %rsi, %rax
+	jmp gconclusion
+block89363:
 	movq %rdx, %rax
 	jmp gconclusion
-block140284:
-	movq %rdi, %rax
-	jmp gconclusion
-block140285:
-	leaq g(%rip), %rsi
+block89364:
+	leaq g(%rip), %rcx
 	movq $1, %r8
 	negq %r8
-	addq %r8, %rcx
-	movq %rdx, %r8
-	addq %rdi, %r8
-	movq %rdi, %rdx
-	movq %r8, %rdi
-	movq %rsi, %rax
+	addq %r8, %rdi
+	movq %rsi, %r8
+	addq %rdx, %r8
+	movq %rdx, %rsi
+	movq %r8, %rdx
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	jmp *%rax
-block140287:
-	cmpq $1, %rcx
-	 je block140284
-	jmp block140285
+block89366:
+	cmpq $1, %rdi
+	 je block89363
+	jmp block89364
 gstart:
-	cmpq $0, %rcx
-	 je block140286
-	jmp block140287
+	cmpq $0, %rdi
+	 je block89365
+	jmp block89366
 g:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp gstart
 gconclusion:
@@ -93,15 +96,15 @@ gconclusion:
 .globl main
 .align 16
 mainstart:
-	leaq f(%rip), %rdx
-	movq $8, %rcx
-	callq *%rdx
+	leaq f(%rip), %rcx
+	movq $8, %rdi
+	callq *%rcx
 	movq %rax, %r12
-	leaq g(%rip), %rsi
-	movq $8, %rcx
-	movq $0, %rdx
-	movq $1, %rdi
-	callq *%rsi
+	leaq g(%rip), %rcx
+	movq $8, %rdi
+	movq $0, %rsi
+	movq $1, %rdx
+	callq *%rcx
 	movq %rax, %rcx
 	movq %r12, %rax
 	addq %rcx, %rax

@@ -2,17 +2,17 @@
 .align 16
 mainstart:
 	callq read_int
-	movq %rax, -80(%rbp)
-	callq read_int
 	movq %rax, -72(%rbp)
 	callq read_int
 	movq %rax, -64(%rbp)
 	callq read_int
 	movq %rax, -56(%rbp)
 	callq read_int
-	movq %rax, -104(%rbp)
-	callq read_int
 	movq %rax, -48(%rbp)
+	callq read_int
+	movq %rax, -96(%rbp)
+	callq read_int
+	movq %rax, -80(%rbp)
 	callq read_int
 	movq %rax, -40(%rbp)
 	callq read_int
@@ -20,32 +20,32 @@ mainstart:
 	callq read_int
 	movq %rax, -24(%rbp)
 	callq read_int
+	movq %rax, -88(%rbp)
+	callq read_int
 	movq %rax, -16(%rbp)
 	callq read_int
 	movq %rax, %r14
 	callq read_int
 	movq %rax, %r13
 	callq read_int
-	movq %rax, -88(%rbp)
-	callq read_int
 	movq %rax, %r12
 	callq read_int
 	movq %rax, %rbx
 	callq read_int
 	movq %rax, %rcx
-	movq -72(%rbp), %rdx
+	movq -64(%rbp), %rdx
 	negq %rdx
-	movq -80(%rbp), %rsi
+	movq -72(%rbp), %rsi
 	addq %rdx, %rsi
-	movq -56(%rbp), %rdx
+	movq -48(%rbp), %rdx
 	negq %rdx
-	movq -64(%rbp), %rdi
+	movq -56(%rbp), %rdi
 	addq %rdx, %rdi
 	movq %rsi, %rdx
 	addq %rdi, %rdx
-	movq -48(%rbp), %rsi
+	movq -80(%rbp), %rsi
 	negq %rsi
-	movq -104(%rbp), %rdi
+	movq -96(%rbp), %rdi
 	addq %rsi, %rdi
 	movq -32(%rbp), %rsi
 	negq %rsi
@@ -54,19 +54,19 @@ mainstart:
 	movq %rdi, %rsi
 	addq %r8, %rsi
 	addq %rsi, %rdx
-	movq -16(%rbp), %rsi
+	movq -88(%rbp), %rsi
 	negq %rsi
 	movq -24(%rbp), %rdi
 	addq %rsi, %rdi
-	movq %r13, %rsi
+	movq %r14, %rsi
 	negq %rsi
-	movq %r14, %r8
+	movq -16(%rbp), %r8
 	addq %rsi, %r8
 	movq %rdi, %rsi
 	addq %r8, %rsi
 	movq %r12, %rdi
 	negq %rdi
-	movq -88(%rbp), %r8
+	movq %r13, %r8
 	addq %rdi, %r8
 	negq %rcx
 	movq %rbx, %rdi
@@ -86,7 +86,7 @@ main:
 	pushq %r12
 	pushq %r14
 	pushq %r13
-	subq $112, %rsp
+	subq $96, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
 	callq initialize
@@ -96,7 +96,7 @@ main:
 	jmp mainstart
 mainconclusion:
 	subq $0, %r15
-	addq $112, %rsp
+	addq $96, %rsp
 	popq %rbx
 	popq %r12
 	popq %r14

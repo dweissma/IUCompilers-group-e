@@ -1,26 +1,29 @@
 .globl even
 .align 16
-block140521:
-	leaq odd(%rip), %rdx
+block89602:
+	leaq odd(%rip), %rcx
 	movq $1, %rsi
 	negq %rsi
-	addq %rsi, %rcx
-	movq %rdx, %rax
+	addq %rsi, %rdx
+	movq %rdx, %rdi
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	jmp *%rax
-block140520:
+block89601:
 	movq $1, %rax
 	jmp evenconclusion
 evenstart:
-	cmpq $0, %rcx
-	 je block140520
-	jmp block140521
+	movq %rdi, %rdx
+	cmpq $0, %rdx
+	 je block89601
+	jmp block89602
 even:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp evenstart
 evenconclusion:
@@ -30,27 +33,30 @@ evenconclusion:
 	retq 
 .globl odd
 .align 16
-block140523:
-	leaq even(%rip), %rdx
+block89604:
+	leaq even(%rip), %rcx
 	movq $1, %rsi
 	negq %rsi
-	addq %rsi, %rcx
-	movq %rdx, %rax
+	addq %rsi, %rdx
+	movq %rdx, %rdi
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	jmp *%rax
-block140522:
+block89603:
 	movq $0, %rax
 	jmp oddconclusion
 oddstart:
-	cmpq $0, %rcx
-	 je block140522
-	jmp block140523
+	movq %rdi, %rdx
+	cmpq $0, %rdx
+	 je block89603
+	jmp block89604
 odd:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp oddstart
 oddconclusion:
@@ -60,20 +66,20 @@ oddconclusion:
 	retq 
 .globl main
 .align 16
-block140526:
+block89607:
 	movq $0, %rax
 	jmp mainconclusion
-block140525:
+block89606:
 	movq $42, %rax
 	jmp mainconclusion
 mainstart:
-	leaq even(%rip), %rdx
-	movq $2, %rcx
-	callq *%rdx
+	leaq even(%rip), %rcx
+	movq $2, %rdi
+	callq *%rcx
 	movq %rax, %rcx
 	cmpq $1, %rcx
-	 je block140525
-	jmp block140526
+	 je block89606
+	jmp block89607
 main:
 	pushq %rbp
 	movq %rsp, %rbp

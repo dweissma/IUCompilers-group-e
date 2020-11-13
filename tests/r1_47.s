@@ -2,11 +2,11 @@
 .align 16
 mainstart:
 	callq read_int
-	movq %rax, %rdx
-	movq $10, %rcx
-	negq %rcx
-	movq %rdx, %rax
-	addq %rcx, %rax
+	movq %rax, %rcx
+	movq $10, %rdx
+	negq %rdx
+	movq %rcx, %rax
+	addq %rdx, %rax
 	jmp mainconclusion
 main:
 	pushq %rbp

@@ -1,12 +1,14 @@
 .globl id
 .align 16
 idstart:
+	movq %rdi, %rcx
 	movq %rcx, %rax
 	jmp idconclusion
 id:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp idstart
 idconclusion:
@@ -17,6 +19,7 @@ idconclusion:
 .globl f
 .align 16
 fstart:
+	movq %rdi, %rcx
 	movq %rcx, %r11
 	movq 8(%r11), %rax
 	jmp fconclusion
@@ -24,6 +27,7 @@ f:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp fstart
 fconclusion:
@@ -33,47 +37,49 @@ fconclusion:
 	retq 
 .globl main
 .align 16
-block140321:
+block89400:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
 	movq $131, 0(%r11)
 	movq %rcx, %r11
-	movq %r13, 8(%r11)
+	movq %r12, 8(%r11)
 	movq $0, %rdx
-	callq *%r12
-	movq %rax, %rdx
-	movq $42, %rcx
-	movq %rdx, %rax
+	movq %rcx, %rdi
+	callq *%rbx
+	movq %rax, %rcx
+	movq $42, %rdi
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $0, %rsp
+	popq %rbx
 	popq %r12
-	popq %r13
 	popq %rbp
 	jmp *%rax
-block140323:
+block89402:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block140321
-block140322:
+	jmp block89400
+block89401:
 	movq $0, %rdx
-	jmp block140321
+	jmp block89400
 mainstart:
-	leaq f(%rip), %r12
+	leaq f(%rip), %rbx
 	leaq id(%rip), %rcx
-	movq %rcx, %r13
+	movq %rcx, %r12
 	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rcx
-	 jl block140322
-	jmp block140323
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block89401
+	jmp block89402
 main:
 	pushq %rbp
 	movq %rsp, %rbp
+	pushq %rbx
 	pushq %r12
-	pushq %r13
 	subq $0, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
@@ -85,8 +91,8 @@ main:
 mainconclusion:
 	subq $0, %r15
 	addq $0, %rsp
+	popq %rbx
 	popq %r12
-	popq %r13
 	popq %rbp
 	retq 
 

@@ -1,6 +1,8 @@
 .globl add
 .align 16
 addstart:
+	movq %rdi, %rcx
+	movq %rsi, %rdx
 	movq %rcx, %rax
 	addq %rdx, %rax
 	jmp addconclusion
@@ -8,6 +10,7 @@ add:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp addstart
 addconclusion:
@@ -18,10 +21,10 @@ addconclusion:
 .globl main
 .align 16
 mainstart:
-	leaq add(%rip), %rsi
-	movq $40, %rcx
-	movq $2, %rdx
-	movq %rsi, %rax
+	leaq add(%rip), %rcx
+	movq $40, %rdi
+	movq $2, %rsi
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp

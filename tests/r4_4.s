@@ -1,53 +1,55 @@
 .globl sum
 .align 16
-block140489:
-	movq $1, %rax
-	jmp sumconclusion
-block140490:
-	leaq sum(%rip), %rdx
+block89571:
+	leaq sum(%rip), %rcx
 	movq $1, %rsi
 	negq %rsi
-	movq %rbx, %rcx
-	addq %rsi, %rcx
-	callq *%rdx
+	movq %r12, %rdx
+	addq %rsi, %rdx
+	movq %rdx, %rdi
+	callq *%rcx
 	movq %rax, %rcx
-	movq %rbx, %rax
+	movq %r12, %rax
 	addq %rcx, %rax
 	jmp sumconclusion
+block89570:
+	movq $1, %rax
+	jmp sumconclusion
 sumstart:
-	movq %rcx, %rbx
-	cmpq $1, %rbx
-	 je block140489
-	jmp block140490
+	movq %rdi, %r12
+	cmpq $1, %r12
+	 je block89570
+	jmp block89571
 sum:
 	pushq %rbp
 	movq %rsp, %rbp
-	pushq %rbx
+	pushq %r12
 	subq $8, %rsp
+	movq $0, 0(%r15)
 	addq $0, %r15
 	jmp sumstart
 sumconclusion:
 	subq $0, %r15
 	addq $8, %rsp
-	popq %rbx
+	popq %r12
 	popq %rbp
 	retq 
 .globl main
 .align 16
-block140492:
+block89573:
 	movq $777, %rax
 	jmp mainconclusion
-block140491:
+block89572:
 	movq $42, %rax
 	jmp mainconclusion
 mainstart:
-	leaq sum(%rip), %rdx
-	movq $3, %rcx
-	callq *%rdx
+	leaq sum(%rip), %rcx
+	movq $3, %rdi
+	callq *%rcx
 	movq %rax, %rcx
 	cmpq $6, %rcx
-	 je block140491
-	jmp block140492
+	 je block89572
+	jmp block89573
 main:
 	pushq %rbp
 	movq %rsp, %rbp

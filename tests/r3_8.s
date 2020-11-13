@@ -1,12 +1,12 @@
 .globl main
 .align 16
-block42063:
+block86205:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
 	movq %rcx, %r11
@@ -19,51 +19,49 @@ block42063:
 	movq %rcx, %r11
 	movq 8(%r11), %rax
 	jmp mainconclusion
-block42065:
+block86207:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block42063
-block42064:
+	jmp block86205
+block86206:
 	movq $0, %rcx
-	jmp block42063
-block42066:
+	jmp block86205
+block86208:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r12
+	movq %rdx, %rbx
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block42064
-	jmp block42065
-block42068:
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block86206
+	jmp block86207
+block86210:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block42066
-block42067:
+	jmp block86208
+block86209:
 	movq $0, %rcx
-	jmp block42066
+	jmp block86208
 mainstart:
-	movq $0, %r12
+	movq $0, %rbx
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block42067
-	jmp block42068
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block86209
+	jmp block86210
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	pushq %r12
+	pushq %rbx
 	subq $8, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
@@ -75,7 +73,7 @@ main:
 mainconclusion:
 	subq $0, %r15
 	addq $8, %rsp
-	popq %r12
+	popq %rbx
 	popq %rbp
 	retq 
 

@@ -1,25 +1,25 @@
 .globl main
 .align 16
-block38604:
+block82758:
 	movq $42, %rax
 	jmp mainconclusion
-block38603:
+block82757:
 	movq $777, %rax
 	jmp mainconclusion
-block38606:
-	movq $42, %rax
-	jmp mainconclusion
-block38605:
+block82759:
 	callq read_int
 	movq %rax, %rcx
 	cmpq $42, %rcx
-	 je block38603
-	jmp block38604
+	 je block82757
+	jmp block82758
+block82760:
+	movq $42, %rax
+	jmp mainconclusion
 mainstart:
 	movq $0, %rcx
 	cmpq $1, %rcx
-	 je block38605
-	jmp block38606
+	 je block82759
+	jmp block82760
 main:
 	pushq %rbp
 	movq %rsp, %rbp

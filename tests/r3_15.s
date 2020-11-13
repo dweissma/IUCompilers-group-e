@@ -1,20 +1,20 @@
 .globl main
 .align 16
-block41055:
+block85219:
 	movq %rbx, %r11
 	movq 8(%r11), %rax
 	jmp mainconclusion
-block41057:
+block85221:
 	movq %r13, %r11
 	movq $42, 8(%r11)
 	movq $0, %rcx
-	jmp block41055
-block41056:
+	jmp block85219
+block85220:
 	movq %rbx, %r11
 	movq $42, 8(%r11)
 	movq $0, %rcx
-	jmp block41055
-block41058:
+	jmp block85219
+block85222:
 	movq free_ptr(%rip), %rdx
 	addq $48, free_ptr(%rip)
 	movq %rdx, %r11
@@ -28,30 +28,30 @@ block41058:
 	movq %rax, 16(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
+	movq %r13, 24(%r11)
+	movq $0, %rcx
+	movq %rdx, %r11
 	movq -16(%rbp), %rax
-	movq %rax, 24(%r11)
+	movq %rax, 32(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %r14, 32(%r11)
-	movq $0, %rcx
-	movq %rdx, %r11
-	movq %r13, 40(%r11)
+	movq %r14, 40(%r11)
 	movq $0, %rcx
 	movq %rdx, %r13
 	callq read_int
 	movq %rax, %rcx
 	cmpq $0, %rcx
-	 je block41056
-	jmp block41057
-block41060:
+	 je block85220
+	jmp block85221
+block85224:
 	movq %r15, %rdi
 	movq $40, %rsi
 	callq collect
-	jmp block41058
-block41059:
+	jmp block85222
+block85223:
 	movq $0, %rcx
-	jmp block41058
-block41061:
+	jmp block85222
+block85225:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -62,32 +62,33 @@ block41061:
 	movq %rdx, %rbx
 	movq $1, -32(%rbp)
 	movq $2, -24(%rbp)
-	movq $3, -16(%rbp)
-	movq $4, %r14
-	movq $5, %r13
+	movq $3, %r13
+	movq $4, -16(%rbp)
+	movq $5, %r14
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $40, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block41059
-	jmp block41060
-block41062:
+	 jl block85223
+	jmp block85224
+block85226:
 	movq $0, %rcx
-	jmp block41061
-block41063:
+	jmp block85225
+block85227:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block41061
+	jmp block85225
 mainstart:
 	movq $0, %rbx
 	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rcx
-	 jl block41062
-	jmp block41063
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block85226
+	jmp block85227
 main:
 	pushq %rbp
 	movq %rsp, %rbp
