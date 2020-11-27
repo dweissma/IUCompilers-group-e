@@ -4,7 +4,8 @@
 (require "interp-R0.rkt")
 (require "interp-R1.rkt")
 (require "interp.rkt")
-(require (only-in "type-check-R2.rkt" type-check-op type-equal?))
+(require (only-in "type-check-R2.rkt" type-check-op operator-types))
+(require (only-in "type-check-R5.rkt" type-equal?))
 (require "utilities.rkt")
 (provide (all-defined-out))
 (require graph)
@@ -42,6 +43,10 @@
 (define (type-is-vector? type)
   (cond [(list? type) (eq? (car type) 'Vector)]
         [else #f]))
+
+(define (return-type func)
+  (define app (lambda (func) (list-tail func (index-of func '->))))
+  (if (type-is-vector? func) (app (list-ref func 1)) (app func)))
 
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
 (define (split-pairs plist)
@@ -91,6 +96,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(define (type-check-op op arg-types)
+  (match (dict-ref (operator-types) op)
+    [`(,param-types . ,return-type)
+     (for ([at arg-types] [pt param-types]) 
+       (unless (type-equal? at pt)
+         (error 'type-check-op
+                "type error: argument type ~a not equal to parameter type ~a"
+                at pt)))
+     return-type]
+    [else
+     (error 'type-check-op "unrecognized operator ~a" op)]))
 
 (define (type-check-apply env e es)
   (define-values (e^ ty) ((type-check-exp env) e))
@@ -225,6 +243,16 @@
       [(Call e es)
        (define-values (e^ es^ rt) (type-check-apply env e es))
        (values (Call e^ es^) rt)]
+      [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body)
+       (define-values (new-body bodyT) 
+         ((type-check-exp (append (map cons xs Ts) env)) body))
+       (define ty `(,@Ts -> ,rT))
+       (cond
+        [(type-equal? rT bodyT)
+         (values (Lambda bnd rT new-body) ty)]
+        [else
+         (error "function body's type does not match return type" bodyT rT)
+         ])]
       [else 
        (error 'type-check-exp "R4/unmatched ~a" e)]
       ))
@@ -303,6 +331,7 @@
     [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
     [(Apply f es) (Apply f (map shrink-exp es))]
+    [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body) (Lambda (and bnd `([,xs : ,Ts] ...)) rT (shrink-exp body))]
     [x x]))
     
 (define (shrink-def def)
@@ -335,6 +364,9 @@
        (Prim op (for/list ([e es]) ((uniquify-exp symtab) e)))]
       [(If cond exp else) (If ((uniquify-exp symtab) cond) ((uniquify-exp symtab) exp) ((uniquify-exp symtab) else))]
       [(Apply f es) (Apply ((uniquify-exp symtab) f) (map (uniquify-exp symtab) es))]
+      [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body)
+       (let* [(new-vars (map (lambda (x) `(,x . ,(gensym x))) xs)) (ys (map cdr new-vars))] 
+         (Lambda (map (lambda (x p) `(,x : ,p)) ys Ts) rT ((uniquify-exp (append new-vars symtab)) body)))]
       )))
 
 (define (uniquify-def def global-symtab)
@@ -369,7 +401,8 @@
     [(Prim op es)
      (Prim op (for/list ([e es]) (reveal-exp e glbls)))]
     [(If cond exp else) (If (reveal-exp cond glbls) (reveal-exp exp glbls) (reveal-exp else glbls))]
-    [(Apply f es) (Apply (reveal-exp f glbls) (map (lambda (e) (reveal-exp e glbls)) es))]))  
+    [(Apply f es) (Apply (reveal-exp f glbls) (map (lambda (e) (reveal-exp e glbls)) es))]
+    [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body) (Lambda bnd rT (reveal-exp body glbls))]))  
 
 (define (reveal-def def glbls)
   (match def
@@ -382,6 +415,81 @@
      (ProgramDefs info (map (lambda (def) (reveal-def def (make-global-symtab ds))) ds))]
     ))
 
+(define (free-in-exp exp env)
+  (match exp
+    [(HasType (Var x) t)
+     (if (member x env) (set ) (set (HasType (Var x) t)))]
+    [(HasType exp t)
+     (free-in-exp exp env)]
+    [(Int n) (set )]
+    [(Bool bool) (set )]
+    [(Let x e body)
+      (set-union (free-in-exp e env) (free-in-exp body (cons x env)))]
+    [(Prim op es)
+     (foldr (lambda (x b) (set-union (free-in-exp x env) b)) (set ) es)]
+    [(If cond exp else) (set-union (free-in-exp cond env) (free-in-exp exp env) (free-in-exp else env))]
+    [(Apply f es) (set-union (free-in-exp f env) (foldr (lambda (x b) (set-union (free-in-exp x env) b)) (set ) es))]
+    [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body)
+     (free-in-exp body (append xs env))]))
+
+(define (convert-exp exp)
+  (match exp
+    [(Var x)
+     (values (Var x) '())]
+    [(HasType (FunRef f) t)
+     (values (HasType (Prim 'vector `(,(HasType (FunRef f) t))) `(Vector ,t)) '())]
+    [(HasType (Apply f es) t)
+     (define tmp (gensym 'tmp))
+     (define-values (f-exp f-defs) (convert-exp f))
+     (define processed (split-pairs (for/list ([e es]) (begin (define-values (exp defs) (convert-exp e)) `(,exp . ,defs)))))
+     (define clos-type ((lambda (x) (match x [(HasType clos t2) t2])) f-exp))
+     (values (HasType (Let tmp f-exp (HasType
+                             (Apply (HasType (Prim 'vector-ref `(,(HasType (Var tmp) clos-type) ,(HasType (Int 0) 'Integer))) (list-ref clos-type 1))
+                                     (cons f-exp (car processed))) (return-type clos-type))) (return-type clos-type))
+             (append f-defs (cdr processed)))]
+    [(HasType (Lambda (and bnd `([,xs : ,Ts] ...)) rT body) t)
+     (define free-vars (set->list (free-in-exp body xs)))
+     (define name (gensym 'lambda))
+     (define clos-name (gensym 'clos))
+     (define-values (fixed-body defs) (convert-exp body))
+     (define clos-type `(Vector ,t ,@(map (lambda (x) (match x [(HasType x t) t])) free-vars)))
+     (values (HasType (Prim 'vector `(,(HasType (FunRef name) t) ,@free-vars)) clos-type)
+             (cons (Def name (cons `(,clos-name : ,clos-type) bnd) rT '()
+                        (expand-into-lets (map (lambda (x) (match x [(HasType (Var y) t) y])) free-vars)
+                                          (map (lambda (n) (HasType (Prim 'vector-ref `(,(HasType (Var clos-name) clos-type) ,(HasType (Int n) 'Integer))) (list-ref clos-type n))) (range 1 (add1 (length free-vars))))
+                                          fixed-body rT)) defs))]
+    [(HasType exp type)
+     (define-values (conv-exp defs) (convert-exp exp))
+     (values (HasType conv-exp type) defs)] 
+    [(Int n) (values (Int n) '())]
+    [(Bool bool) (values (Bool bool) '())]
+    [(Let x e body)
+     (define-values (e-conv-exp e-defs) (convert-exp e))
+     (define-values (body-conv-exp body-defs) (convert-exp body))
+     (values (Let x e-conv-exp body-conv-exp) (append e-defs body-defs))]
+    [(Prim op es)
+     (define processed (split-pairs (for/list ([e es]) (begin (define-values (exp defs) (convert-exp e)) `(,exp . ,defs)))))
+     (values (Prim op (car processed))
+             (flatten (cdr processed)))]
+    [(If cond exp else)
+     (define-values (cond-exp cond-defs) (convert-exp cond))
+     (define-values (exp-exp exp-defs) (convert-exp exp))
+     (define-values (else-exp else-defs) (convert-exp else))
+     (values (If cond-exp exp-exp else-exp)
+             (append cond-defs exp-defs else-defs))]
+    ))
+
+(define (convert-def def)
+  (match def
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (define-values (conv-body defs) (convert-exp body))
+     (cons (Def name (if (eq? name 'main) p:t* (cons `(,(gensym 'clos) : (Vector ,(append ps '(->) (list rt)))) p:t*)) rt info conv-body) defs)]))
+  
+(define (convert-to-closure p)
+  (match p
+    [(ProgramDefs info ds)
+     (ProgramDefs info (append-map (lambda (def) (convert-def def)) ds))]
+    ))
 
 (define (make-limited-list types)
   (if (> (length types) 6)
@@ -1105,15 +1213,6 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
-(define test-program '((define (f [x : Integer]) : Integer
-                         (if (eq? x 0) 0
-                             (if (eq? x 1) 1
-                                 (+ (f (- x 1)) (f (- x 2))))))
-
-                       (define (g [x : Integer] [y : Integer] [z : Integer]) : Integer
-                         (if (eq? x 0) y
-                             (if (eq? x 1) z
-                                 (g (- x 1) z (+ y z)))))
-
-                       (+ (f 8) (g 8 0 1))))
+(define test-compile (compose convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x)))) ;print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-program '((((lambda: ([x : Integer]) : (Integer -> Integer)
+     (lambda: ([y : Integer]) : Integer x)) 42) 444)))
