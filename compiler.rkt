@@ -41,11 +41,12 @@
         [else #f]))
 
 (define (type-is-vector? type)
-  (cond [(list? type) (eq? (car type) 'Vector)]
+  (cond [(eq? 'Closure type) #t]
+        [(list? type) (eq? (car type) 'Vector)]
         [else #f]))
 
 (define (return-type func)
-  (define app (lambda (func) (list-tail func (index-of func '->))))
+  (define app (lambda (func) (car (list-tail func (index-of func '->)))))
   (if (type-is-vector? func) (app (list-ref func 1)) (app func)))
 
 ;Used to turn '((var . alist) (var . alist)...) into ((var var ...) . alist) where the second alist is the combination of all the other first alists
@@ -174,6 +175,18 @@
           (values (Prim 'vector-length (list e^))  'Integer)]
          [else (error 'type-check-exp
                       "expected a vector in vector-lenfth, not ~a" t)])]
+      [(Prim 'vector-ref (list e (HasType (Int i) t1)))
+       (define-values (e^ t) (recur e))
+       (match t
+         [`(Vector ,ts ...)
+          (unless (and (exact-nonnegative-integer? i) (< i (length ts)))
+            (error 'type-check-exp "invalid index ~a" i))
+          (let ([t (list-ref ts i)])
+            (values
+             (Prim 'vector-ref (list e^ (HasType (Int i) 'Integer)))
+             t))]
+         [else (error 'type-check-exp
+                      "expected a vector in vector-ref, not ~a from ~a with env: ~a" t e env)])]
       [(Prim 'vector-ref (list e (Int i)))
        (define-values (e^ t) (recur e))
        (match t
@@ -225,9 +238,7 @@
        ((type-check-exp env) (Prim 'vector es))]
       [(HasType e t)
        (define-values (e^ t^) (recur e))
-       (unless (type-equal? t t^)
-         (error 'type-check-exp "type mismatch in HasType" t t^))
-       (values (e^ t))]
+       (values e^ t^)] ;Allow Type mismatches so we can fix types after closure conversion
       [(GlobalValue name)
        (values (GlobalValue name) 'Integer)]
       [(Allocate size t)
@@ -415,6 +426,9 @@
      (ProgramDefs info (map (lambda (def) (reveal-def def (make-global-symtab ds))) ds))]
     ))
 
+(define (convert-type t)
+  (if (type-is-function? t) 'Closure t))
+
 (define (free-in-exp exp env)
   (match exp
     [(HasType (Var x) t)
@@ -436,24 +450,37 @@
   (match exp
     [(Var x)
      (values (Var x) '())]
+    [(HasType (Prim 'vector-ref (list vect i)) t) #:when(type-is-function? t)
+                                                  (define-values (vect-exp vect-defs) (convert-exp vect))
+                                                  (define-values (i-exp i-defs) (convert-exp i))
+                                                  (values (HasType (Prim 'vector-ref (list vect-exp i-exp)) 'Closure)
+                                                          (append vect-defs i-defs))]
+    [(HasType (Let x e body) t) #:when(type-is-function? t)
+                                (define-values (e-exp e-defs) (convert-exp e))
+                                (define-values (body-exp body-defs) (convert-exp body))
+                                (values (HasType (Let x e-exp body-exp) 'Closure)
+                                        (append e-defs body-defs))]
     [(HasType (FunRef f) t)
      (values (HasType (Prim 'vector `(,(HasType (FunRef f) t))) `(Vector ,t)) '())]
+    [(HasType (Var x) t) #:when (type-is-function? t)
+                         (values (HasType (Var x) 'Closure) '())]
     [(HasType (Apply f es) t)
      (define tmp (gensym 'tmp))
      (define-values (f-exp f-defs) (convert-exp f))
      (define processed (split-pairs (for/list ([e es]) (begin (define-values (exp defs) (convert-exp e)) `(,exp . ,defs)))))
      (define clos-type ((lambda (x) (match x [(HasType clos t2) t2])) f-exp))
      (values (HasType (Let tmp f-exp (HasType
-                             (Apply (HasType (Prim 'vector-ref `(,(HasType (Var tmp) clos-type) ,(HasType (Int 0) 'Integer))) (list-ref clos-type 1))
-                                     (cons f-exp (car processed))) (return-type clos-type))) (return-type clos-type))
+                             (Apply (HasType (Prim 'vector-ref `(,(HasType (Var tmp) clos-type) ,(HasType (Int 0) 'Integer))) 'Closure)
+                                     (cons f-exp (car processed))) (convert-type t))) (convert-type t))
              (append f-defs (cdr processed)))]
     [(HasType (Lambda (and bnd `([,xs : ,Ts] ...)) rT body) t)
-     (define free-vars (set->list (free-in-exp body xs)))
+     (define free-vars (map (lambda (x) (match x [(HasType y t) (HasType y (convert-type t))]))
+                                                  (set->list (free-in-exp body xs))))
      (define name (gensym 'lambda))
      (define clos-name (gensym 'clos))
      (define-values (fixed-body defs) (convert-exp body))
      (define clos-type `(Vector ,t ,@(map (lambda (x) (match x [(HasType x t) t])) free-vars)))
-     (values (HasType (Prim 'vector `(,(HasType (FunRef name) t) ,@free-vars)) clos-type)
+     (values (HasType (Prim 'vector `(,(HasType (FunRef name) t) ,@free-vars)) 'Closure)
              (cons (Def name (cons `(,clos-name : ,clos-type) bnd) rT '()
                         (expand-into-lets (map (lambda (x) (match x [(HasType (Var y) t) y])) free-vars)
                                           (map (lambda (n) (HasType (Prim 'vector-ref `(,(HasType (Var clos-name) clos-type) ,(HasType (Int n) 'Integer))) (list-ref clos-type n))) (range 1 (add1 (length free-vars))))
@@ -483,7 +510,7 @@
   (match def
     [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
      (define-values (conv-body defs) (convert-exp body))
-     (cons (Def name (if (eq? name 'main) p:t* (cons `(,(gensym 'clos) : (Vector ,(append ps '(->) (list rt)))) p:t*)) rt info conv-body) defs)]))
+     (cons (Def name (if (eq? name 'main) p:t* (cons `(,(gensym 'clos) : (Vector ,(append ps '(->) (list rt)))) (map (lambda (x t) `(,x : ,(convert-type t))) xs ps))) rt info conv-body) defs)]))
   
 (define (convert-to-closure p)
   (match p
@@ -1213,6 +1240,10 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-(define test-compile (compose convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x)))) ;print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
-(define test-program '((((lambda: ([x : Integer]) : (Integer -> Integer)
-     (lambda: ([y : Integer]) : Integer x)) 42) 444)))
+(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x)))) 
+(define test-program '((define (id [x : Integer]) : Integer x)
+(define (f [n : Integer] [clos : (Vector (Integer -> Integer) (Vector Integer))]) : Integer
+  (if (eq? n 100)
+      ((vector-ref clos 0) (vector-ref (vector-ref clos 1) 0))
+      (f (+ n 1) (vector (vector-ref clos 0) (vector-ref clos 1)))))
+(f 0 (vector id (vector 42)))))

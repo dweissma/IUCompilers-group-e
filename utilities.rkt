@@ -1144,6 +1144,7 @@ Changelog:
     ['() #t] ;; for when a type is not specified
     ['_ #t]  ;; also for when a type is not specified
     ['Any #t]
+    ['Closure #t] ;General Closure type
     [else #f]))
 
 (define (lhs? v)

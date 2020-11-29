@@ -2,17 +2,17 @@
 .align 16
 mainstart:
 	callq read_int
-	movq %rax, %r12
+	movq %rax, %rbx
 	callq read_int
 	movq %rax, %rcx
 	negq %rcx
-	movq %r12, %rax
+	movq %rbx, %rax
 	addq %rcx, %rax
 	jmp mainconclusion
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	pushq %r12
+	pushq %rbx
 	subq $8, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
@@ -24,7 +24,7 @@ main:
 mainconclusion:
 	subq $0, %r15
 	addq $8, %rsp
-	popq %r12
+	popq %rbx
 	popq %rbp
 	retq 
 

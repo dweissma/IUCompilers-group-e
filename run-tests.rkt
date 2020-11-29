@@ -28,6 +28,7 @@
      ("shrink", shrink, interp-R4)
      ("uniquify" ,uniquify ,interp-R4)
      ("reveal functions" ,reveal-functions ,interp-F1)
+     ("convert closures" ,convert-to-closure ,interp-F1)
      ("limit functions" ,limit-functions ,interp-F1)
      ("expose allocation", expose-allocation, interp-F1)
      ("remove complex opera*" ,remove-complex-opera* ,interp-F1)
@@ -55,14 +56,17 @@
           (string=? r (car (string-split p "_"))))
         all-tests)))
 
-(interp-tests "r1" type-check-R4 r4-passes interp-R4 "r1" (tests-for "r1"))
+;(interp-tests "r1" type-check-R4 r4-passes interp-R4 "r1" (tests-for "r1"))
 (compiler-tests "r1" type-check-R4 r4-passes "r1" (tests-for "r1"))
 
-(interp-tests "r2" type-check-R4 r4-passes interp-R4 "r2" (tests-for "r2"))
+;(interp-tests "r2" type-check-R4 r4-passes interp-R4 "r2" (tests-for "r2"))
 (compiler-tests "r2" type-check-R4 r4-passes "r2" (tests-for "r2"))
 
-(interp-tests "r3" type-check-R4 r4-passes interp-R4 "r3" (tests-for "r3"))
+;(interp-tests "r3" type-check-R4 r4-passes interp-R4 "r3" (tests-for "r3"))
 (compiler-tests "r3" type-check-R4 r4-passes "r3" (tests-for "r3"))
 
-(interp-tests "r4" type-check-R4 r4-passes interp-R4 "r4" (tests-for "r4"))
+;(interp-tests "r4" type-check-R4 r4-passes interp-R4 "r4" (tests-for "r4"))
 (compiler-tests "r4" type-check-R4 r4-passes "r4" (tests-for "r4"))
+
+;(interp-tests "r5" type-check-R4 r4-passes interp-R4 "r5" (tests-for "r5"))
+(compiler-tests "r5" type-check-R4 r4-passes "r5" (tests-for "r5"))

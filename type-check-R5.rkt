@@ -100,7 +100,7 @@
          [`(Vector ,ts ...)
           (values (Prim 'vector-length (list e^))  'Integer)]
          [else (error 'type-check-exp
-                      "expected a vector in vector-lenfth, not ~a" t)])]
+                      "expected a vector in vector-length, not ~a" t)])]
       [(Prim 'vector-ref (list e (Int i)))
        (define-values (e^ t) (recur e))
        (match t

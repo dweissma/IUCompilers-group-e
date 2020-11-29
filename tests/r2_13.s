@@ -1,33 +1,33 @@
 .globl main
 .align 16
-block82737:
+block76854:
 	movq $777, %rax
 	jmp mainconclusion
-block82736:
+block76853:
 	movq $42, %rax
 	jmp mainconclusion
-block82738:
+block76855:
 	cmpq $1, %rcx
-	 je block82736
-	jmp block82737
-block82740:
-	movq $0, %rcx
-	jmp block82738
-block82739:
+	 je block76853
+	jmp block76854
+block76856:
 	movq $1, %rcx
-	jmp block82738
-block82742:
+	jmp block76855
+block76857:
 	movq $0, %rcx
-	jmp block82738
-block82741:
+	jmp block76855
+block76858:
 	cmpq $1, %rcx
-	 je block82739
-	jmp block82740
+	 je block76856
+	jmp block76857
+block76859:
+	movq $0, %rcx
+	jmp block76855
 mainstart:
 	movq $1, %rcx
 	cmpq $1, %rcx
-	 je block82741
-	jmp block82742
+	 je block76858
+	jmp block76859
 main:
 	pushq %rbp
 	movq %rsp, %rbp
