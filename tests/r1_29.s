@@ -1,10 +1,10 @@
 .globl main
 .align 16
 mainstart:
-	movq $20, %rcx
-	movq $22, %rdx
-	movq %rdx, %rax
-	addq %rcx, %rax
+	movq $20, %rdx
+	movq $22, %rcx
+	movq %rcx, %rax
+	addq %rdx, %rax
 	jmp mainconclusion
 main:
 	pushq %rbp
