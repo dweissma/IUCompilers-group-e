@@ -345,7 +345,7 @@
     [(Let x e body) (Let x (shrink-exp e) (shrink-exp body))]
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
     [(Apply f es) (Apply f (map shrink-exp es))]
-    [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body) (Lambda (and bnd `([,xs : ,Ts] ...)) rT (shrink-exp body))]
+    [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body) (Lambda bnd rT (shrink-exp body))]
     [x x]))
     
 (define (shrink-def def)
@@ -471,7 +471,7 @@
      (define clos-type ((lambda (x) (match x [(HasType clos t2) t2])) f-exp))
      (values (HasType (Let tmp f-exp (HasType
                              (Apply (HasType (Prim 'vector-ref `(,(HasType (Var tmp) clos-type) ,(HasType (Int 0) 'Integer))) (list-ref clos-type 1))
-                                     (cons f-exp (car processed))) (convert-type t))) (convert-type t))
+                                     (cons (HasType (Var tmp) clos-type) (car processed))) (convert-type t))) (convert-type t))
              (append f-defs (cdr processed)))]
     [(HasType (Lambda (and bnd `([,xs : ,Ts] ...)) rT body) t)
      (define free-vars (map (lambda (x) (match x [(HasType y t) (HasType y (convert-type t))]))
@@ -480,11 +480,11 @@
      (define clos-name (gensym 'clos))
      (define-values (fixed-body defs) (convert-exp body))
      (define fixed-free-vars (map (lambda (x) (define-values (y z) (convert-exp x)) x) free-vars))
-     (define clos-type `(Vector ,((lambda (x) (match x [`(Vector ,x) x])) (convert-type t)) ,@(map (lambda (x) (match x [(HasType x t) t])) fixed-free-vars)))
+     (define clos-type `(Vector ,(convert-type-funref t) ,@(map (lambda (x) (match x [(HasType x t) t])) fixed-free-vars)))
      (values (HasType (Closure (length bnd) (cons (HasType (FunRef name) (list-ref clos-type 1)) fixed-free-vars)) clos-type) 
              (cons (Def name (cons `(,clos-name : ,clos-type) bnd) rT '()
                         (expand-into-lets (map (lambda (x) (match x [(HasType (Var y) t) y])) fixed-free-vars)
-                                          (map (lambda (n) (HasType (Prim 'vector-ref `(,(HasType (Var clos-name) clos-type) ,(HasType (Int n) 'Integer))) (list-ref clos-type n))) (range 1 (add1 (length free-vars))))
+                                          (map (lambda (n) (HasType (Prim 'vector-ref `(,(HasType (Var clos-name) clos-type) ,(HasType (Int n) 'Integer))) (list-ref clos-type (add1 n)))) (range 1 (add1 (length free-vars))))
                                           fixed-body rT)) defs))]
     [(HasType exp type)
      (define-values (conv-exp defs) (convert-exp exp))
@@ -797,7 +797,7 @@
             (Def name p:t* rt `((locals . ,vars)) (cons `(,(symb-append name 'start) . ,tail) graph)))]))
 
 ;; explicate-control : R2 -> C1
-(define (explicate-control p)
+(trace-define (explicate-control p)
   (match p
     [(ProgramDefs info ds)
      (ProgramDefs info (map explicate-def ds))];(begin (define-values (tail vars graph) (explicate-tail e '())) (Program `((locals . ,vars)) (CFG (cons `(start . ,tail) graph))))]
@@ -831,6 +831,9 @@
 
 (define arg-regs  (vector->list arg-registers))
 
+(define (get-arity-from-type type)
+  (length (slice (list-ref type 1) 1 (index-of (list-ref type 1) '->))))
+
 (define (slct-atom e)
   (match e
     [(Var x) (Var x)]
@@ -863,6 +866,7 @@
        [(Prim '< (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
        [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* 8 (add1 n))) (Var x))))]
        [(Prim 'vector-set! (list (HasType vect t1) (HasType (Int n) t2) (HasType arg t3))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 (* 8 (add1 n))))) (Instr 'movq (list (Imm 0) (Var x))))]
+       [(Prim 'procedure-arity (list (HasType clos t))) (list (Instr 'movq (list (Imm (get-arity-from-type t)) (Var x))))] 
        [(Allocate len types) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)) 0)])
                                (list (Instr 'movq (list (Global 'free_ptr) (Var x))) (Instr 'addq (list (Imm (* 8 (add1 len))) (Global 'free_ptr))) (Instr 'movq (list (Var x) (Reg 'r11))) (Instr 'movq (list (Imm tag) (Deref 'r11 0)))))]
        [(AllocateClosure len types arity) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)) arity)])
@@ -895,6 +899,7 @@
                                                         (Instr 'addq (list (slct-atom v) (Reg 'rax)))
                                                         (Jmp (symb-append name 'conclusion)))]
        [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* 8 (add1 n))) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
+       [(Prim 'procedure-arity (list (HasType clos t))) (list (Instr 'movq (list (Imm (get-arity-from-type t)) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [atm (list (Instr 'movq (list (slct-atom atm) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))])]))
 
 
@@ -1254,7 +1259,12 @@
                                            (x86-to-string (append B-list `((main . ,main) (conclusion . ,conclusion))))
                                            )))))]))
 
-;(define test-compile (compose uncover-locals explicate-control remove-complex-opera*  expose-allocation limit-functions convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
-(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x)))) 
-(define test-program '( (((lambda: ([x : Integer]) : (Integer -> Integer)
-     (lambda: ([y : Integer]) : Integer x)) 42) 444)))
+;(define test-compile (compose convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x))))
+(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live  select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-functions uniquify shrink type-check parse-program (lambda (x) `(program () ,@x)))) 
+(define test-program '(
+  (let ([h (if #t
+                    (lambda: ([z : Integer]) : Integer
+                      (+ z 7))
+                   (lambda: ([z : Integer]) : Integer
+                      (+ z 8)))])
+    (h 35))))

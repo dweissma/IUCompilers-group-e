@@ -1,6 +1,6 @@
 .globl doubleid
 .align 16
-block13245:
+block39117:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -19,15 +19,15 @@ block13245:
 	popq %r14
 	popq %rbp
 	jmp *%rax
-block13247:
+block39119:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block13245
-block13246:
+	jmp block39117
+block39118:
 	movq $0, %rcx
-	jmp block13245
-block13248:
+	jmp block39117
+block39120:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -38,35 +38,35 @@ block13248:
 	movq %rdx, %rcx
 	movq %rcx, %r11
 	movq 8(%r11), %r12
-	leaq lambda13213(%rip), %rcx
+	leaq lambda39085(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block13246
-	jmp block13247
-block13250:
+	 jl block39118
+	jmp block39119
+block39122:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block13248
-block13249:
+	jmp block39120
+block39121:
 	movq $0, %rcx
-	jmp block13248
+	jmp block39120
 doubleidstart:
 	movq %rdi, %rcx
 	movq %rsi, %r14
-	leaq lambda13213(%rip), %rcx
+	leaq lambda39085(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block13249
-	jmp block13250
+	 jl block39121
+	jmp block39122
 doubleid:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -85,28 +85,28 @@ doubleidconclusion:
 	popq %r14
 	popq %rbp
 	retq 
-.globl lambda13213
+.globl lambda39085
 .align 16
-lambda13213start:
+lambda39085start:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rax
-	jmp lambda13213conclusion
-lambda13213:
+	jmp lambda39085conclusion
+lambda39085:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
 	movq $0, 0(%r15)
 	addq $0, %r15
-	jmp lambda13213start
-lambda13213conclusion:
+	jmp lambda39085start
+lambda39085conclusion:
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	retq 
 .globl main
 .align 16
-block13251:
+block39123:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -124,15 +124,15 @@ block13251:
 	popq %r12
 	popq %rbp
 	jmp *%rax
-block13253:
+block39125:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block13251
-block13252:
+	jmp block39123
+block39124:
 	movq $0, %rcx
-	jmp block13251
-block13254:
+	jmp block39123
+block39126:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -150,16 +150,16 @@ block13254:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block13252
-	jmp block13253
-block13255:
-	movq $0, %rcx
-	jmp block13254
-block13256:
+	 jl block39124
+	jmp block39125
+block39128:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block13254
+	jmp block39126
+block39127:
+	movq $0, %rcx
+	jmp block39126
 mainstart:
 	leaq doubleid(%rip), %rcx
 	movq %rcx, %rbx
@@ -168,8 +168,8 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block13255
-	jmp block13256
+	 jl block39127
+	jmp block39128
 main:
 	pushq %rbp
 	movq %rsp, %rbp

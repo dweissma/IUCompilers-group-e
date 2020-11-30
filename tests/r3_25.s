@@ -1,6 +1,6 @@
 .globl main
 .align 16
-block9043:
+block31190:
 	movq free_ptr(%rip), %rcx
 	addq $408, free_ptr(%rip)
 	movq %rcx, %r11
@@ -70,47 +70,46 @@ block9043:
 	movq %rax, 128(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -240(%rbp), %rax
-	movq %rax, 136(%r11)
+	movq %rbx, 136(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -232(%rbp), %rax
+	movq -240(%rbp), %rax
 	movq %rax, 144(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -224(%rbp), %rax
+	movq -232(%rbp), %rax
 	movq %rax, 152(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -216(%rbp), %rax
+	movq -224(%rbp), %rax
 	movq %rax, 160(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -208(%rbp), %rax
+	movq -216(%rbp), %rax
 	movq %rax, 168(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -200(%rbp), %rax
+	movq -208(%rbp), %rax
 	movq %rax, 176(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -192(%rbp), %rax
+	movq -200(%rbp), %rax
 	movq %rax, 184(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -184(%rbp), %rax
+	movq -192(%rbp), %rax
 	movq %rax, 192(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -176(%rbp), %rax
+	movq -184(%rbp), %rax
 	movq %rax, 200(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -168(%rbp), %rax
+	movq -176(%rbp), %rax
 	movq %rax, 208(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -160(%rbp), %rax
+	movq -168(%rbp), %rax
 	movq %rax, 216(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
@@ -122,27 +121,27 @@ block9043:
 	movq %rax, 232(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -376(%rbp), %rax
+	movq -136(%rbp), %rax
 	movq %rax, 240(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -136(%rbp), %rax
+	movq -128(%rbp), %rax
 	movq %rax, 248(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -128(%rbp), %rax
+	movq -120(%rbp), %rax
 	movq %rax, 256(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -120(%rbp), %rax
+	movq -112(%rbp), %rax
 	movq %rax, 264(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -112(%rbp), %rax
+	movq -104(%rbp), %rax
 	movq %rax, 272(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -104(%rbp), %rax
+	movq -96(%rbp), %rax
 	movq %rax, 280(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
@@ -174,44 +173,45 @@ block9043:
 	movq %rax, 336(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -32(%rbp), %rax
+	movq -160(%rbp), %rax
 	movq %rax, 344(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -24(%rbp), %rax
+	movq -32(%rbp), %rax
 	movq %rax, 352(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -16(%rbp), %rax
+	movq -24(%rbp), %rax
 	movq %rax, 360(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq %r14, 368(%r11)
+	movq -16(%rbp), %rax
+	movq %rax, 368(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq %r13, 376(%r11)
+	movq %r14, 376(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq %r12, 384(%r11)
+	movq %r13, 384(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq -96(%rbp), %rax
+	movq -376(%rbp), %rax
 	movq %rax, 392(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
-	movq %rbx, 400(%r11)
+	movq %r12, 400(%r11)
 	movq $0, %rdx
 	movq %rcx, %r11
 	movq 344(%r11), %rax
 	jmp mainconclusion
-block9045:
+block31192:
 	movq %r15, %rdi
 	movq $400, %rsi
 	callq collect
-	jmp block9043
-block9044:
+	jmp block31190
+block31191:
 	movq $0, %rdx
-	jmp block9043
+	jmp block31190
 mainstart:
 	movq $0, -368(%rbp)
 	movq $1, -360(%rbp)
@@ -229,25 +229,25 @@ mainstart:
 	movq $13, -264(%rbp)
 	movq $14, -256(%rbp)
 	movq $15, -248(%rbp)
-	movq $16, -240(%rbp)
-	movq $17, -232(%rbp)
-	movq $18, -224(%rbp)
-	movq $19, -216(%rbp)
-	movq $20, -208(%rbp)
-	movq $21, -200(%rbp)
-	movq $22, -192(%rbp)
-	movq $23, -184(%rbp)
-	movq $24, -176(%rbp)
-	movq $25, -168(%rbp)
-	movq $26, -160(%rbp)
+	movq $16, %rbx
+	movq $17, -240(%rbp)
+	movq $18, -232(%rbp)
+	movq $19, -224(%rbp)
+	movq $20, -216(%rbp)
+	movq $21, -208(%rbp)
+	movq $22, -200(%rbp)
+	movq $23, -192(%rbp)
+	movq $24, -184(%rbp)
+	movq $25, -176(%rbp)
+	movq $26, -168(%rbp)
 	movq $27, -152(%rbp)
 	movq $28, -144(%rbp)
-	movq $29, -376(%rbp)
-	movq $30, -136(%rbp)
-	movq $31, -128(%rbp)
-	movq $32, -120(%rbp)
-	movq $33, -112(%rbp)
-	movq $34, -104(%rbp)
+	movq $29, -136(%rbp)
+	movq $30, -128(%rbp)
+	movq $31, -120(%rbp)
+	movq $32, -112(%rbp)
+	movq $33, -104(%rbp)
+	movq $34, -96(%rbp)
 	movq $35, -88(%rbp)
 	movq $36, -80(%rbp)
 	movq $37, -72(%rbp)
@@ -255,21 +255,21 @@ mainstart:
 	movq $39, -56(%rbp)
 	movq $40, -48(%rbp)
 	movq $41, -40(%rbp)
-	movq $42, -32(%rbp)
-	movq $43, -24(%rbp)
-	movq $44, -16(%rbp)
-	movq $45, %r14
-	movq $46, %r13
-	movq $47, %r12
-	movq $48, -96(%rbp)
-	movq $49, %rbx
+	movq $42, -160(%rbp)
+	movq $43, -32(%rbp)
+	movq $44, -24(%rbp)
+	movq $45, -16(%rbp)
+	movq $46, %r14
+	movq $47, %r13
+	movq $48, -376(%rbp)
+	movq $49, %r12
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $400, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9044
-	jmp block9045
+	 jl block31191
+	jmp block31192
 main:
 	pushq %rbp
 	movq %rsp, %rbp

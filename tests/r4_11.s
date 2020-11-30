@@ -1,10 +1,6 @@
 .globl f
 .align 16
-block9953:
-	movq %rbx, %r11
-	movq 8(%r11), %rax
-	jmp fconclusion
-block9944:
+block35673:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -25,15 +21,15 @@ block9944:
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block9946:
+block35675:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9944
-block9945:
+	jmp block35673
+block35674:
 	movq $0, %rcx
-	jmp block9944
-block9947:
+	jmp block35673
+block35676:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -51,17 +47,17 @@ block9947:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9945
-	jmp block9946
-block9949:
+	 jl block35674
+	jmp block35675
+block35678:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9947
-block9948:
+	jmp block35676
+block35677:
 	movq $0, %rcx
-	jmp block9947
-block9950:
+	jmp block35676
+block35679:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -79,17 +75,17 @@ block9950:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9948
-	jmp block9949
-block9952:
+	 jl block35677
+	jmp block35678
+block35681:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9950
-block9951:
+	jmp block35679
+block35680:
 	movq $0, %rcx
-	jmp block9950
-block9954:
+	jmp block35679
+block35683:
 	leaq f(%rip), %rcx
 	movq %rcx, %r13
 	movq free_ptr(%rip), %rcx
@@ -97,15 +93,19 @@ block9954:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9951
-	jmp block9952
+	 jl block35680
+	jmp block35681
+block35682:
+	movq %rbx, %r11
+	movq 8(%r11), %rax
+	jmp fconclusion
 fstart:
 	movq %rdi, %rcx
 	movq %rsi, %r12
 	movq %rdx, %rbx
 	cmpq $100, %r12
-	 je block9953
-	jmp block9954
+	 je block35682
+	jmp block35683
 f:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -128,7 +128,7 @@ fconclusion:
 	retq 
 .globl main
 .align 16
-block9955:
+block35684:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -137,26 +137,26 @@ block9955:
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %r12, %rdi
+	movq %r14, %rdi
 	movq $0, %rsi
 	movq %rcx, %rdx
-	movq %r13, %rax
+	movq %r12, %rax
 	subq $0, %r15
 	addq $8, %rsp
 	popq %rbx
 	popq %r12
-	popq %r13
+	popq %r14
 	popq %rbp
 	jmp *%rax
-block9956:
-	movq $0, %rcx
-	jmp block9955
-block9957:
+block35686:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9955
-block9958:
+	jmp block35684
+block35685:
+	movq $0, %rcx
+	jmp block35684
+block35687:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -164,24 +164,24 @@ block9958:
 	movq %rdx, %r11
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r12
+	movq %rdx, %r14
 	movq $42, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9956
-	jmp block9957
-block9960:
+	 jl block35685
+	jmp block35686
+block35689:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9958
-block9959:
+	jmp block35687
+block35688:
 	movq $0, %rcx
-	jmp block9958
-block9961:
+	jmp block35687
+block35690:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -191,7 +191,7 @@ block9961:
 	movq $0, %rcx
 	movq %rdx, %rcx
 	movq %rcx, %r11
-	movq 8(%r11), %r13
+	movq 8(%r11), %r12
 	leaq f(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
@@ -199,16 +199,16 @@ block9961:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9959
-	jmp block9960
-block9963:
+	 jl block35688
+	jmp block35689
+block35692:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block9961
-block9962:
+	jmp block35690
+block35691:
 	movq $0, %rcx
-	jmp block9961
+	jmp block35690
 mainstart:
 	leaq f(%rip), %rcx
 	movq %rcx, %rbx
@@ -217,14 +217,14 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block9962
-	jmp block9963
+	 jl block35691
+	jmp block35692
 main:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
 	pushq %r12
-	pushq %r13
+	pushq %r14
 	subq $8, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
@@ -238,7 +238,7 @@ mainconclusion:
 	addq $8, %rsp
 	popq %rbx
 	popq %r12
-	popq %r13
+	popq %r14
 	popq %rbp
 	retq 
 

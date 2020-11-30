@@ -19,7 +19,7 @@ idconclusion:
 	retq 
 .globl main
 .align 16
-block12952:
+block38667:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -39,14 +39,14 @@ block12952:
 	popq %rbx
 	popq %rbp
 	jmp *%rax
-block12953:
-	movq $0, %rdx
-	jmp block12952
-block12954:
+block38669:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block12952
+	jmp block38667
+block38668:
+	movq $0, %rdx
+	jmp block38667
 mainstart:
 	leaq id(%rip), %rcx
 	movq %rcx, %rbx
@@ -55,8 +55,8 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block12953
-	jmp block12954
+	 jl block38668
+	jmp block38669
 main:
 	pushq %rbp
 	movq %rsp, %rbp

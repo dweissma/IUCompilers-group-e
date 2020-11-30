@@ -22,6 +22,7 @@
     (- . ((Integer) . Integer))
     (not . ((Boolean) . Boolean))
     (read . (() . Integer))
+    (procedure-arity . ((_) . Integer))
     ))
 
 (define (type-equal? t1 t2)

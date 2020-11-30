@@ -1,6 +1,6 @@
 .globl main
 .align 16
-block8822:
+block30971:
 	movq free_ptr(%rip), %rcx
 	addq $24, free_ptr(%rip)
 	movq %rcx, %r11
@@ -19,14 +19,14 @@ block8822:
 	movq %rcx, %rax
 	addq %rdx, %rax
 	jmp mainconclusion
-block8824:
+block30973:
 	movq %r15, %rdi
 	movq $16, %rsi
 	callq collect
-	jmp block8822
-block8823:
+	jmp block30971
+block30972:
 	movq $0, %rdx
-	jmp block8822
+	jmp block30971
 mainstart:
 	movq $40, %r12
 	movq $2, %rbx
@@ -35,8 +35,8 @@ mainstart:
 	addq $16, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block8823
-	jmp block8824
+	 jl block30972
+	jmp block30973
 main:
 	pushq %rbp
 	movq %rsp, %rbp
