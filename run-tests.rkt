@@ -39,8 +39,8 @@
      ("uncover live", uncover-live, interp-pseudo-x86-3)
      ("build interference", build-interference,  interp-pseudo-x86-3)
      ("allocate registers", allocate-registers,  interp-pseudo-x86-3)
-     ;("patch instructions" ,patch-instructions , interp-pseudo-x86-3)
-     ;("print x86" ,print-x86 #f)
+     ("patch instructions" ,patch-instructions , interp-pseudo-x86-3)
+     ("print x86" ,print-x86 #f)
      ))
 
 (define all-tests
@@ -71,4 +71,4 @@
 ;(compiler-tests "r4" type-check-R5 r5-passes "r4" (tests-for "r4"))
 
 (interp-tests "r5" type-check-R5 r5-passes interp-R5 "r5" (tests-for "r5"))
-;(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))
+(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))

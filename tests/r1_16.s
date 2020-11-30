@@ -2,9 +2,10 @@
 .align 16
 mainstart:
 	movq $10, %rcx
-	movq $32, %rdx
-	movq %rcx, %rax
-	addq %rdx, %rax
+	movq %rcx, %rdx
+	movq $32, %rcx
+	movq %rdx, %rax
+	addq %rcx, %rax
 	jmp mainconclusion
 main:
 	pushq %rbp

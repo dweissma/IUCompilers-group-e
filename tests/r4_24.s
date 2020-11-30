@@ -1,31 +1,30 @@
 .globl big
 .align 16
 bigstart:
-	movq %rcx, %rdi
+	movq %rcx, %r8
+	movq %rsi, %rdi
+	addq %rdx, %rdi
 	movq %rsi, %rcx
-	addq %rdx, %rcx
-	movq %rsi, %r8
-	addq %rdi, %r8
 	addq %r8, %rcx
-	movq %rdi, %r8
-	addq %rsi, %r8
-	movq %rdi, %r9
+	addq %rcx, %rdi
+	movq %r8, %rcx
+	addq %rsi, %rcx
+	movq %r8, %r9
 	addq %rdx, %r9
-	addq %r9, %r8
-	addq %r8, %rcx
-	movq %rdx, %r8
-	addq %rdx, %r8
+	addq %r9, %rcx
+	addq %rcx, %rdi
+	movq %rdx, %rcx
+	addq %rdx, %rcx
 	addq %rsi, %rdx
-	addq %rdx, %r8
-	movq %rdi, %rdx
-	addq %rsi, %rdx
-	movq %rdi, %rsi
-	addq %rdi, %rsi
+	addq %rdx, %rcx
+	movq %r8, %rdx
 	addq %rsi, %rdx
 	movq %r8, %rsi
-	addq %rdx, %rsi
-	movq %rcx, %rax
-	addq %rsi, %rax
+	addq %r8, %rsi
+	addq %rsi, %rdx
+	addq %rdx, %rcx
+	movq %rdi, %rax
+	addq %rcx, %rax
 	jmp bigconclusion
 big:
 	pushq %rbp
@@ -41,81 +40,54 @@ bigconclusion:
 	retq 
 .globl main
 .align 16
-block38235:
-	movq free_ptr(%rip), %rdx
+block80059:
+	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
+	movq %rcx, %r11
 	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %r14
+	movq %rcx, %r11
+	movq %rbx, 8(%r11)
+	movq $0, %rdx
+	movq %rcx, %r13
+	movq %r13, %r11
+	movq 8(%r11), %rbx
 	callq read_int
-	movq %rax, %r13
+	movq %rax, -16(%rbp)
 	callq read_int
 	movq %rax, %r12
 	callq read_int
 	movq %rax, %rcx
-	movq %r14, %rdi
-	movq %r13, %rsi
+	movq %r13, %rdi
+	movq -16(%rbp), %rsi
 	movq %r12, %rdx
-	callq *-16(%rbp)
+	callq *%rbx
 	movq %rax, %rcx
 	movq $42, %rax
 	addq %rcx, %rax
 	jmp mainconclusion
-block38237:
+block80061:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block38235
-block38236:
-	movq $0, %rcx
-	jmp block38235
-block38238:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %rax
-	movq %rax, -16(%rbp)
-	leaq big(%rip), %rcx
-	movq %rcx, %r12
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block38236
-	jmp block38237
-block38240:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block38238
-block38239:
-	movq $0, %rcx
-	jmp block38238
+	jmp block80059
+block80060:
+	movq $0, %rdx
+	jmp block80059
 mainstart:
 	leaq big(%rip), %rcx
-	movq %rcx, %r12
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block38239
-	jmp block38240
+	 jl block80060
+	jmp block80061
 main:
 	pushq %rbp
 	movq %rsp, %rbp
+	pushq %rbx
 	pushq %r12
-	pushq %r14
 	pushq %r13
 	subq $24, %rsp
 	movq $16384, %rdi
@@ -128,8 +100,8 @@ main:
 mainconclusion:
 	subq $0, %r15
 	addq $24, %rsp
+	popq %rbx
 	popq %r12
-	popq %r14
 	popq %r13
 	popq %rbp
 	retq 

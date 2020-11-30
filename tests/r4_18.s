@@ -1,6 +1,6 @@
 .globl o
 .align 16
-block37736:
+block79704:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -10,23 +10,41 @@ block37736:
 	movq $0, %rcx
 	movq %rdx, %rax
 	jmp oconclusion
-block37739:
+block79706:
+	movq %r15, %rdi
+	movq $8, %rsi
+	callq collect
+	jmp block79704
+block79705:
+	movq $0, %rcx
+	jmp block79704
+block79702:
+	movq %r13, %rbx
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block79705
+	jmp block79706
+block79707:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r13, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
+	movq %rdx, %rdi
+	movq %rdi, %r11
+	movq 8(%r11), %rcx
+	movq $1, %rsi
+	negq %rsi
+	movq %r14, %rdx
+	addq %rsi, %rdx
 	movq %rdx, %rsi
-	movq $1, %rdx
-	negq %rdx
-	movq %r12, %rcx
-	addq %rdx, %rcx
-	movq %rsi, %rdi
-	movq %rcx, %rsi
-	movq %rbx, %rdx
-	movq %r14, %rax
+	movq %r13, %rdx
+	movq %rcx, %rax
 	subq $0, %r15
 	addq $0, %rsp
 	popq %rbx
@@ -35,239 +53,194 @@ block37739:
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block37741:
+block79709:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37739
-block37740:
+	jmp block79707
+block79708:
 	movq $0, %rcx
-	jmp block37739
-block37742:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r13, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %r14
-	leaq o(%rip), %rcx
-	movq %rcx, %r13
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37740
-	jmp block37741
-block37744:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37742
-block37743:
-	movq $0, %rcx
-	jmp block37742
-block37745:
+	jmp block79707
+block79710:
 	movq free_ptr(%rip), %rdx
 	addq $48, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3979, 0(%r11)
 	movq %rdx, %r11
-	movq 40(%r15), %rax
+	movq 32(%r15), %rax
 	movq %rax, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq 32(%r15), %rax
+	movq 24(%r15), %rax
 	movq %rax, 16(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq 24(%r15), %rax
-	movq %rax, 24(%r11)
+	movq %rbx, 24(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %r14, 32(%r11)
+	movq 16(%r15), %rax
+	movq %rax, 32(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %r13, 40(%r11)
+	movq %r12, 40(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
 	leaq o(%rip), %rcx
-	movq %rcx, %r13
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37743
-	jmp block37744
-block37747:
+	 jl block79708
+	jmp block79709
+block79711:
+	movq $0, %rcx
+	jmp block79710
+block79712:
 	movq %r15, %rdi
 	movq $40, %rsi
 	callq collect
-	jmp block37745
-block37746:
-	movq $0, %rcx
-	jmp block37745
-block37748:
+	jmp block79710
+block79713:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r13, 8(%r11)
+	movq %r12, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r13
+	movq %rdx, %r12
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $40, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37746
-	jmp block37747
-block37750:
+	 jl block79711
+	jmp block79712
+block79715:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37748
-block37749:
+	jmp block79713
+block79714:
 	movq $0, %rcx
-	jmp block37748
-block37751:
+	jmp block79713
+block79716:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r13, 8(%r11)
+	movq %r12, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r14
-	movq $1, %r13
+	movq %rdx, 16(%r15)
+	movq $1, %r12
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37749
-	jmp block37750
-block37753:
+	 jl block79714
+	jmp block79715
+block79718:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37751
-block37752:
+	jmp block79716
+block79717:
 	movq $0, %rcx
-	jmp block37751
-block37754:
+	jmp block79716
+block79719:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r13, 8(%r11)
+	movq %rbx, 8(%r11)
+	movq $0, %rcx
+	movq %rdx, %rbx
+	movq $2, %r12
+	movq free_ptr(%rip), %rcx
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block79717
+	jmp block79718
+block79721:
+	movq %r15, %rdi
+	movq $8, %rsi
+	callq collect
+	jmp block79719
+block79720:
+	movq $0, %rcx
+	jmp block79719
+block79722:
+	movq free_ptr(%rip), %rdx
+	addq $16, free_ptr(%rip)
+	movq %rdx, %r11
+	movq $3, 0(%r11)
+	movq %rdx, %r11
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, 24(%r15)
-	movq $2, %r13
+	movq $1, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37752
-	jmp block37753
-block37756:
+	 jl block79720
+	jmp block79721
+block79724:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37754
-block37755:
+	jmp block79722
+block79723:
 	movq $0, %rcx
-	jmp block37754
-block37757:
+	jmp block79722
+block79725:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r13, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, 32(%r15)
-	movq $1, %r13
+	movq $2, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37755
-	jmp block37756
-block37759:
+	 jl block79723
+	jmp block79724
+block79727:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37757
-block37758:
+	jmp block79725
+block79726:
 	movq $0, %rcx
-	jmp block37757
-block37760:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $3, 0(%r11)
-	movq %rdx, %r11
-	movq %r13, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, 40(%r15)
-	movq $2, %r13
+	jmp block79725
+block79703:
+	movq $1, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37758
-	jmp block37759
-block37762:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37760
-block37761:
-	movq $0, %rcx
-	jmp block37760
-block37738:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37736
-block37737:
-	movq $0, %rcx
-	jmp block37736
-block37764:
-	movq $1, %r13
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37761
-	jmp block37762
-block37763:
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37737
-	jmp block37738
+	 jl block79726
+	jmp block79727
 ostart:
 	movq %rdi, %rcx
-	movq %rsi, %r12
-	movq %rdx, %rbx
-	cmpq $0, %r12
-	 je block37763
-	jmp block37764
+	movq %rsi, %r14
+	movq %rdx, %r13
+	cmpq $0, %r14
+	 je block79702
+	jmp block79703
 o:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -290,7 +263,7 @@ oconclusion:
 	retq 
 .globl t
 .align 16
-block37765:
+block79728:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -300,24 +273,25 @@ block37765:
 	movq $0, %rdx
 	movq %rcx, %rax
 	jmp tconclusion
-block37767:
+block79730:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37765
-block37766:
+	jmp block79728
+block79729:
 	movq $0, %rdx
-	jmp block37765
+	jmp block79728
 tstart:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rsi
-	cmpq %rsi, %rcx
-	 jl block37766
-	jmp block37767
+	movq %rcx, %rsi
+	addq $8, %rsi
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rsi
+	 jl block79729
+	jmp block79730
 t:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -334,7 +308,7 @@ tconclusion:
 	retq 
 .globl h
 .align 16
-block37768:
+block79731:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -344,14 +318,14 @@ block37768:
 	movq $0, %rdx
 	movq %rcx, %rax
 	jmp hconclusion
-block37770:
+block79733:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37768
-block37769:
+	jmp block79731
+block79732:
 	movq $0, %rdx
-	jmp block37768
+	jmp block79731
 hstart:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
@@ -361,8 +335,8 @@ hstart:
 	addq $8, %rsi
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rsi
-	 jl block37769
-	jmp block37770
+	 jl block79732
+	jmp block79733
 h:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -379,7 +353,7 @@ hconclusion:
 	retq 
 .globl f
 .align 16
-block37771:
+block79734:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -389,25 +363,25 @@ block37771:
 	movq $0, %rdx
 	movq %rcx, %rax
 	jmp fconclusion
-block37773:
+block79735:
+	movq $0, %rdx
+	jmp block79734
+block79736:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37771
-block37772:
-	movq $0, %rdx
-	jmp block37771
+	jmp block79734
 fstart:
-	movq %rdi, %rdx
-	movq %rsi, %rdx
-	movq %rdx, %rbx
-	movq free_ptr(%rip), %rdx
-	movq %rdx, %rsi
+	movq %rdi, %rcx
+	movq %rsi, %rcx
+	movq %rcx, %rbx
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rsi
 	addq $8, %rsi
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rsi
-	 jl block37772
-	jmp block37773
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rsi
+	 jl block79735
+	jmp block79736
 f:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -424,35 +398,35 @@ fconclusion:
 	retq 
 .globl e
 .align 16
-block37774:
-	movq free_ptr(%rip), %rdx
+block79737:
+	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
+	movq %rcx, %r11
 	movq $131, 0(%r11)
-	movq %rdx, %r11
+	movq %rcx, %r11
 	movq %rbx, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rax
+	movq $0, %rdx
+	movq %rcx, %rax
 	jmp econclusion
-block37776:
+block79738:
+	movq $0, %rdx
+	jmp block79737
+block79739:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37774
-block37775:
-	movq $0, %rcx
-	jmp block37774
+	jmp block79737
 estart:
-	movq %rdi, %rdx
-	movq %rsi, %rdx
-	movq %rdx, %rbx
-	movq free_ptr(%rip), %rdx
-	movq %rdx, %rsi
+	movq %rdi, %rcx
+	movq %rsi, %rcx
+	movq %rcx, %rbx
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rsi
 	addq $8, %rsi
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rsi
-	 jl block37775
-	jmp block37776
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rsi
+	 jl block79738
+	jmp block79739
 e:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -469,16 +443,16 @@ econclusion:
 	retq 
 .globl main
 .align 16
-block37777:
+block79740:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %r13, %rdi
+	movq 16(%r15), %rdi
 	movq %rcx, %rsi
 	callq *%r14
 	movq %rax, %rcx
@@ -495,286 +469,188 @@ block37777:
 	movq %rcx, %r11
 	movq 8(%r11), %rax
 	jmp mainconclusion
-block37779:
+block79742:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37777
-block37778:
+	jmp block79740
+block79741:
 	movq $0, %rcx
-	jmp block37777
-block37780:
+	jmp block79740
+block79743:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $3, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq -24(%rbp), %rax
+	movq %rax, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq 16(%r15), %rdi
+	movq 56(%r15), %rdi
 	movq $1, %rsi
 	movq %rcx, %rdx
-	callq *-24(%rbp)
+	callq *-48(%rbp)
+	movq %rax, %rcx
+	movq %r12, %rdi
+	movq %rcx, %rsi
+	callq *%rbx
 	movq %rax, %rcx
 	movq 32(%r15), %rdi
 	movq %rcx, %rsi
-	callq *-40(%rbp)
+	callq *%r13
 	movq %rax, %rcx
-	movq 48(%r15), %rdi
-	movq %rcx, %rsi
-	callq *-56(%rbp)
-	movq %rax, %rcx
-	movq %rcx, %r12
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37778
-	jmp block37779
-block37782:
+	 jl block79741
+	jmp block79742
+block79745:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37780
-block37781:
+	jmp block79743
+block79744:
 	movq $0, %rcx
-	jmp block37780
-block37783:
+	jmp block79743
+block79746:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, 16(%r15)
-	movq $42, %r12
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37781
-	jmp block37782
-block37785:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37783
-block37784:
-	movq $0, %rcx
-	jmp block37783
-block37786:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq -24(%rbp), %rax
+	movq %rax, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %rcx, %r11
+	movq %rcx, 56(%r15)
+	movq 56(%r15), %r11
 	movq 8(%r11), %rax
-	movq %rax, -24(%rbp)
+	movq %rax, -48(%rbp)
+	movq $42, -24(%rbp)
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block79744
+	jmp block79745
+block79748:
+	movq %r15, %rdi
+	movq $8, %rsi
+	callq collect
+	jmp block79746
+block79747:
+	movq $0, %rcx
+	jmp block79746
+block79749:
+	movq free_ptr(%rip), %rdx
+	addq $16, free_ptr(%rip)
+	movq %rdx, %r11
+	movq $131, 0(%r11)
+	movq %rdx, %r11
+	movq %rbx, 8(%r11)
+	movq $0, %rcx
+	movq %rdx, %rcx
+	movq %rcx, %r12
+	movq %r12, %r11
+	movq 8(%r11), %rbx
 	leaq o(%rip), %rcx
-	movq %rcx, %r12
-	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rcx
-	 jl block37784
-	jmp block37785
-block37788:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37786
-block37787:
-	movq $0, %rcx
-	jmp block37786
-block37789:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, 32(%r15)
-	leaq o(%rip), %rcx
-	movq %rcx, %r12
+	movq %rcx, -24(%rbp)
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37787
-	jmp block37788
-block37791:
+	 jl block79747
+	jmp block79748
+block79750:
+	movq $0, %rcx
+	jmp block79749
+block79751:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37789
-block37790:
-	movq $0, %rcx
-	jmp block37789
-block37792:
+	jmp block79749
+block79752:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %rax
-	movq %rax, -40(%rbp)
+	movq %rcx, 32(%r15)
+	movq 32(%r15), %r11
+	movq 8(%r11), %r13
 	leaq t(%rip), %rcx
-	movq %rcx, %r12
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37790
-	jmp block37791
-block37794:
+	 jl block79750
+	jmp block79751
+block79754:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37792
-block37793:
+	jmp block79752
+block79753:
 	movq $0, %rcx
-	jmp block37792
-block37795:
+	jmp block79752
+block79755:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, 48(%r15)
-	leaq t(%rip), %rcx
-	movq %rcx, %r12
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37793
-	jmp block37794
-block37797:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37795
-block37796:
-	movq $0, %rcx
-	jmp block37795
-block37798:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %rax
-	movq %rax, -56(%rbp)
-	leaq h(%rip), %rcx
-	movq %rcx, %r12
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37796
-	jmp block37797
-block37800:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37798
-block37799:
-	movq $0, %rcx
-	jmp block37798
-block37801:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %r13
-	leaq h(%rip), %rcx
-	movq %rcx, %r12
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block37799
-	jmp block37800
-block37803:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block37801
-block37802:
-	movq $0, %rcx
-	jmp block37801
-block37804:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r12, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rcx
-	movq %rcx, %r11
+	movq %rcx, 16(%r15)
+	movq 16(%r15), %r11
 	movq 8(%r11), %r14
-	leaq e(%rip), %rcx
-	movq %rcx, %r12
+	leaq h(%rip), %rcx
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37802
-	jmp block37803
-block37806:
+	 jl block79753
+	jmp block79754
+block79757:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block37804
-block37805:
+	jmp block79755
+block79756:
 	movq $0, %rcx
-	jmp block37804
+	jmp block79755
 mainstart:
 	leaq e(%rip), %rcx
-	movq %rcx, %r12
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block37805
-	jmp block37806
+	 jl block79756
+	jmp block79757
 main:
 	pushq %rbp
 	movq %rsp, %rbp
+	pushq %rbx
 	pushq %r12
 	pushq %r14
 	pushq %r13
-	subq $56, %rsp
+	subq $48, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
 	callq initialize
@@ -784,7 +660,8 @@ main:
 	jmp mainstart
 mainconclusion:
 	subq $0, %r15
-	addq $56, %rsp
+	addq $48, %rsp
+	popq %rbx
 	popq %r12
 	popq %r14
 	popq %r13

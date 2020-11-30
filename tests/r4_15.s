@@ -21,7 +21,7 @@ minusconclusion:
 	retq 
 .globl map__qzxvector
 .align 16
-block36438:
+block78616:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -31,18 +31,19 @@ block36438:
 	movq $0, %rdx
 	movq %rcx, %rax
 	jmp map__qzxvectorconclusion
-block36440:
+block78618:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block36438
-block36439:
+	jmp block78616
+block78617:
 	movq $0, %rdx
-	jmp block36438
+	jmp block78616
 map__qzxvectorstart:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
-	movq %rcx, %r11
+	movq %rcx, %rsi
+	movq %rsi, %r11
 	movq 8(%r11), %rcx
 	movq %rdx, %r11
 	movq 8(%r11), %rdx
@@ -52,12 +53,11 @@ map__qzxvectorstart:
 	callq *%rcx
 	movq %rax, %rbx
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block36439
-	jmp block36440
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block78617
+	jmp block78618
 map__qzxvector:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -74,7 +74,7 @@ map__qzxvectorconclusion:
 	retq 
 .globl main
 .align 16
-block36441:
+block78619:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -84,23 +84,23 @@ block36441:
 	movq %rax, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %r12, %rdi
+	movq %r13, %rdi
 	movq %rbx, %rsi
 	movq %rcx, %rdx
-	callq *%r13
+	callq *%r12
 	movq %rax, %rcx
 	movq %rcx, %r11
 	movq 8(%r11), %rax
 	jmp mainconclusion
-block36443:
+block78621:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block36441
-block36442:
+	jmp block78619
+block78620:
 	movq $0, %rcx
-	jmp block36441
-block36444:
+	jmp block78619
+block78622:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -115,43 +115,17 @@ block36444:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block36442
-	jmp block36443
-block36446:
+	 jl block78620
+	jmp block78621
+block78624:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block36444
-block36445:
+	jmp block78622
+block78623:
 	movq $0, %rcx
-	jmp block36444
-block36447:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %rbx, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %r12
-	leaq minus(%rip), %rcx
-	movq %rcx, %rbx
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block36445
-	jmp block36446
-block36449:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block36447
-block36448:
-	movq $0, %rcx
-	jmp block36447
-block36450:
+	jmp block78622
+block78625:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -160,8 +134,27 @@ block36450:
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %r13
+	movq %rcx, %r13
+	movq %r13, %r11
+	movq 8(%r11), %r12
+	leaq minus(%rip), %rcx
+	movq %rcx, %rbx
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block78623
+	jmp block78624
+block78627:
+	movq %r15, %rdi
+	movq $8, %rsi
+	callq collect
+	jmp block78625
+block78626:
+	movq $0, %rcx
+	jmp block78625
+mainstart:
 	leaq map__qzxvector(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
@@ -169,25 +162,8 @@ block36450:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block36448
-	jmp block36449
-block36451:
-	movq $0, %rcx
-	jmp block36450
-block36452:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block36450
-mainstart:
-	leaq map__qzxvector(%rip), %rcx
-	movq %rcx, %rbx
-	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rcx
-	 jl block36451
-	jmp block36452
+	 jl block78626
+	jmp block78627
 main:
 	pushq %rbp
 	movq %rsp, %rbp

@@ -1,107 +1,6 @@
 .globl sum
 .align 16
-block38588:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r13, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rsi
-	movq $1, %rdx
-	negq %rdx
-	movq %rbx, %rcx
-	addq %rdx, %rcx
-	movq %rsi, %rdi
-	movq %rcx, %rsi
-	callq *%r14
-	movq %rax, %rcx
-	movq %rbx, %rax
-	addq %rcx, %rax
-	jmp sumconclusion
-block38590:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block38588
-block38589:
-	movq $0, %rcx
-	jmp block38588
-block38591:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %r13, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %r14
-	leaq sum(%rip), %rcx
-	movq %rcx, %r13
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block38589
-	jmp block38590
-block38593:
-	movq %r15, %rdi
-	movq $8, %rsi
-	callq collect
-	jmp block38591
-block38592:
-	movq $0, %rcx
-	jmp block38591
-block38595:
-	leaq sum(%rip), %rcx
-	movq %rcx, %r13
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block38592
-	jmp block38593
-block38594:
-	movq $1, %rax
-	jmp sumconclusion
-sumstart:
-	movq %rdi, %rcx
-	movq %rsi, %rbx
-	cmpq $1, %rbx
-	 je block38594
-	jmp block38595
-sum:
-	pushq %rbp
-	movq %rsp, %rbp
-	pushq %rbx
-	pushq %r14
-	pushq %r13
-	subq $8, %rsp
-	movq $0, 0(%r15)
-	addq $0, %r15
-	jmp sumstart
-sumconclusion:
-	subq $0, %r15
-	addq $8, %rsp
-	popq %rbx
-	popq %r14
-	popq %r13
-	popq %rbp
-	retq 
-.globl main
-.align 16
-block38597:
-	movq $777, %rax
-	jmp mainconclusion
-block38596:
-	movq $42, %rax
-	jmp mainconclusion
-block38598:
+block80316:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -111,31 +10,27 @@ block38598:
 	movq $0, %rcx
 	movq %rdx, %rcx
 	movq %rcx, %rdi
-	movq $3, %rsi
-	callq *%r12
+	movq %rdi, %r11
+	movq 8(%r11), %rcx
+	movq $1, %rsi
+	negq %rsi
+	movq %r12, %rdx
+	addq %rsi, %rdx
+	movq %rdx, %rsi
+	callq *%rcx
 	movq %rax, %rcx
-	cmpq $6, %rcx
-	 je block38596
-	jmp block38597
-block38600:
+	movq %r12, %rax
+	addq %rcx, %rax
+	jmp sumconclusion
+block80318:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block38598
-block38599:
+	jmp block80316
+block80317:
 	movq $0, %rcx
-	jmp block38598
-block38601:
-	movq free_ptr(%rip), %rdx
-	addq $16, free_ptr(%rip)
-	movq %rdx, %r11
-	movq $131, 0(%r11)
-	movq %rdx, %r11
-	movq %rbx, 8(%r11)
-	movq $0, %rcx
-	movq %rdx, %rcx
-	movq %rcx, %r11
-	movq 8(%r11), %r12
+	jmp block80316
+block80315:
 	leaq sum(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
@@ -143,16 +38,67 @@ block38601:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block38599
-	jmp block38600
-block38603:
+	 jl block80317
+	jmp block80318
+block80314:
+	movq $1, %rax
+	jmp sumconclusion
+sumstart:
+	movq %rdi, %rcx
+	movq %rsi, %r12
+	cmpq $1, %r12
+	 je block80314
+	jmp block80315
+sum:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
+	pushq %r12
+	subq $0, %rsp
+	movq $0, 0(%r15)
+	addq $0, %r15
+	jmp sumstart
+sumconclusion:
+	subq $0, %r15
+	addq $0, %rsp
+	popq %rbx
+	popq %r12
+	popq %rbp
+	retq 
+.globl main
+.align 16
+block80320:
+	movq $777, %rax
+	jmp mainconclusion
+block80319:
+	movq $42, %rax
+	jmp mainconclusion
+block80321:
+	movq free_ptr(%rip), %rcx
+	addq $16, free_ptr(%rip)
+	movq %rcx, %r11
+	movq $131, 0(%r11)
+	movq %rcx, %r11
+	movq %rbx, 8(%r11)
+	movq $0, %rdx
+	movq %rcx, %rdx
+	movq %rdx, %r11
+	movq 8(%r11), %rcx
+	movq %rdx, %rdi
+	movq $3, %rsi
+	callq *%rcx
+	movq %rax, %rcx
+	cmpq $6, %rcx
+	 je block80319
+	jmp block80320
+block80323:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block38601
-block38602:
-	movq $0, %rcx
-	jmp block38601
+	jmp block80321
+block80322:
+	movq $0, %rdx
+	jmp block80321
 mainstart:
 	leaq sum(%rip), %rcx
 	movq %rcx, %rbx
@@ -161,14 +107,13 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block38602
-	jmp block38603
+	 jl block80322
+	jmp block80323
 main:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
-	pushq %r12
-	subq $0, %rsp
+	subq $8, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
 	callq initialize
@@ -178,9 +123,8 @@ main:
 	jmp mainstart
 mainconclusion:
 	subq $0, %r15
-	addq $0, %rsp
+	addq $8, %rsp
 	popq %rbx
-	popq %r12
 	popq %rbp
 	retq 
 
