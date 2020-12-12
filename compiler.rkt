@@ -103,25 +103,7 @@
 
 ;Replace illegal characters with sequences of characters no sane person would have in their function name
 (define (make-legal-label lbl)
-  (label-name (string->symbol (string-replace (symbol->string lbl) "-" "__qzx"))))
-
-(define (tagof ty)
-  (match ty
-    [`Integer 1]
-    [`Boolean 4]
-    [`Void 5]
-    [`(Vector ,ts ...) 2]
-    [`(Vectorof ,t) 2]
-    [`(,ts ... -> ,rt) 3]
-    [else (error "unrecognized type" ty)]))
-
-(define (project-type e ty)
-  (cond
-    [(vector? ty) (Prim 'eq? (list (Prim 'vector-length (list (Var e)))) (vector-length ty))]
-    [(procedure? ty) (Prim 'eq? (list (Prim 'procedure-arity (list (Var e)))) (procedure-arity ty))]
-    [(integer? ty) (Prim 'eq? (list (Prim 'tag-of-any (list (Var e)))) (tagof ty))]
-    [(boolean? ty) (Prim 'eq? (list (Prim 'tag-of-any (list (Var e)))) (tagof ty))]
-    [else #f]))
+  (label-name (string->symbol (string-replace (symbol->string lbl) "-" "__qzx")))) 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -727,7 +709,7 @@
     [(Apply f es) (set-union (free-in-exp f env) (foldr (lambda (x b) (set-union (free-in-exp x env) b)) (set ) es))]
     [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body)
      (free-in-exp body (append xs env))]
-    [(ValueOf exp type) (free-in-exp exp)]
+    [(ValueOf exp type) (free-in-exp exp env)]
     [(Exit) (set )]))
 
 (define (convert-exp exp)

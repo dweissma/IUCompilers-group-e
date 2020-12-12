@@ -287,8 +287,8 @@
        (values (GlobalValue name) 'Integer)]
       [(Allocate size t)
        (values (Allocate size t) t)]
-      [(AllocateClosure size t)
-       (values (AllocateClosure size t) t)]
+      [(AllocateClosure size t arity)
+       (values (AllocateClosure size t arity) t)]
       [(Collect size)
        (values (Collect size) 'Void)]
       [(FunRef f)
