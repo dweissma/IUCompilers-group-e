@@ -1,34 +1,34 @@
 .globl main
 .align 16
-block85210:
+block159187:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $131, 0(%r11)
 	movq %rdx, %r11
-	movq %rbx, 8(%r11)
+	movq %r14, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %rcx
-	movq %r13, %rdi
+	movq %rbx, %rdi
 	movq %rcx, %rsi
 	movq $42, %rdx
-	movq %r12, %rax
+	movq %r13, %rax
 	subq $0, %r15
 	addq $8, %rsp
 	popq %rbx
-	popq %r12
+	popq %r14
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block85212:
+block159189:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block85210
-block85211:
+	jmp block159187
+block159188:
 	movq $0, %rcx
-	jmp block85210
-block85213:
+	jmp block159187
+block159190:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -36,41 +36,40 @@ block85213:
 	movq %rdx, %r11
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r13
-	movq %r13, %r11
-	movq 8(%r11), %r12
-	leaq lambda85193(%rip), %rcx
-	movq %rcx, %rbx
+	movq %rdx, %rbx
+	movq %rbx, %r11
+	movq 8(%r11), %r13
+	leaq lambda159170(%rip), %rcx
+	movq %rcx, %r14
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block85211
-	jmp block85212
-block85215:
+	 jl block159188
+	jmp block159189
+block159192:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block85213
-block85214:
+	jmp block159190
+block159191:
 	movq $0, %rcx
-	jmp block85213
+	jmp block159190
 mainstart:
-	leaq lambda85190(%rip), %rcx
+	leaq lambda159167(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block85214
-	jmp block85215
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block159191
+	jmp block159192
 main:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
-	pushq %r12
+	pushq %r14
 	pushq %r13
 	subq $8, %rsp
 	movq $16384, %rdi
@@ -84,13 +83,13 @@ mainconclusion:
 	subq $0, %r15
 	addq $8, %rsp
 	popq %rbx
-	popq %r12
+	popq %r14
 	popq %r13
 	popq %rbp
 	retq 
-.globl lambda85190
+.globl lambda159167
 .align 16
-lambda85190start:
+lambda159167start:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rsi
@@ -103,33 +102,33 @@ lambda85190start:
 	addq $16, %rsp
 	popq %rbp
 	jmp *%rax
-lambda85190:
+lambda159167:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
 	movq $0, 0(%r15)
 	addq $0, %r15
-	jmp lambda85190start
-lambda85190conclusion:
+	jmp lambda159167start
+lambda159167conclusion:
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	retq 
-.globl lambda85193
+.globl lambda159170
 .align 16
-lambda85193start:
+lambda159170start:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rax
-	jmp lambda85193conclusion
-lambda85193:
+	jmp lambda159170conclusion
+lambda159170:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
 	movq $0, 0(%r15)
 	addq $0, %r15
-	jmp lambda85193start
-lambda85193conclusion:
+	jmp lambda159170start
+lambda159170conclusion:
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp

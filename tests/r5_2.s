@@ -1,6 +1,6 @@
 .globl doubleid
 .align 16
-block85180:
+block159157:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -20,26 +20,26 @@ block85180:
 	popq %r12
 	popq %rbp
 	jmp *%rax
-block85182:
+block159159:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block85180
-block85181:
+	jmp block159157
+block159158:
 	movq $0, %rdx
-	jmp block85180
+	jmp block159157
 doubleidstart:
 	movq %rdi, %rcx
 	movq %rsi, %rbx
-	leaq lambda85162(%rip), %rcx
+	leaq lambda159139(%rip), %rcx
 	movq %rcx, %r12
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rsi
-	addq $8, %rsi
+	movq %rcx, %rdx
+	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rsi
-	 jl block85181
-	jmp block85182
+	cmpq %rcx, %rdx
+	 jl block159158
+	jmp block159159
 doubleid:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -56,28 +56,28 @@ doubleidconclusion:
 	popq %r12
 	popq %rbp
 	retq 
-.globl lambda85162
+.globl lambda159139
 .align 16
-lambda85162start:
+lambda159139start:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rax
-	jmp lambda85162conclusion
-lambda85162:
+	jmp lambda159139conclusion
+lambda159139:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
 	movq $0, 0(%r15)
 	addq $0, %r15
-	jmp lambda85162start
-lambda85162conclusion:
+	jmp lambda159139start
+lambda159139conclusion:
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp
 	retq 
 .globl main
 .align 16
-block85183:
+block159160:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -96,24 +96,24 @@ block85183:
 	popq %rbx
 	popq %rbp
 	jmp *%rax
-block85185:
+block159162:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block85183
-block85184:
+	jmp block159160
+block159161:
 	movq $0, %rdx
-	jmp block85183
+	jmp block159160
 mainstart:
-	leaq doubleid(%rip), %rdx
-	movq %rdx, %rbx
-	movq free_ptr(%rip), %rdx
-	movq %rdx, %rsi
-	addq $8, %rsi
-	movq fromspace_end(%rip), %rdx
-	cmpq %rdx, %rsi
-	 jl block85184
-	jmp block85185
+	leaq doubleid(%rip), %rcx
+	movq %rcx, %rbx
+	movq free_ptr(%rip), %rcx
+	movq %rcx, %rdx
+	addq $8, %rdx
+	movq fromspace_end(%rip), %rcx
+	cmpq %rcx, %rdx
+	 jl block159161
+	jmp block159162
 main:
 	pushq %rbp
 	movq %rsp, %rbp

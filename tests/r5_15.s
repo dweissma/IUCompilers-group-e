@@ -19,7 +19,7 @@ fconclusion:
 	retq 
 .globl main
 .align 16
-block85065:
+block159040:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -31,24 +31,24 @@ block85065:
 	movq $40, %rax
 	addq %rcx, %rax
 	jmp mainconclusion
-block85067:
+block159042:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block85065
-block85066:
+	jmp block159040
+block159041:
 	movq $0, %rdx
-	jmp block85065
+	jmp block159040
 mainstart:
-	leaq f(%rip), %rcx
-	movq %rcx, %rbx
-	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block85066
-	jmp block85067
+	leaq f(%rip), %rdx
+	movq %rdx, %rbx
+	movq free_ptr(%rip), %rdx
+	movq %rdx, %rsi
+	addq $8, %rsi
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rsi
+	 jl block159041
+	jmp block159042
 main:
 	pushq %rbp
 	movq %rsp, %rbp

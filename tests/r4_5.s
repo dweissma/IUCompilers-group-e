@@ -1,6 +1,6 @@
 .globl tailrecur
 .align 16
-block80348:
+block157115:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -11,10 +11,11 @@ block80348:
 	movq %rcx, %rdi
 	movq %rdi, %r11
 	movq 8(%r11), %rcx
-	movq $1, %rdx
-	negq %rdx
-	movq %r12, %rsi
-	addq %rdx, %rsi
+	movq $1, %rsi
+	negq %rsi
+	movq %r12, %rdx
+	addq %rsi, %rdx
+	movq %rdx, %rsi
 	movq %rcx, %rax
 	subq $0, %r15
 	addq $0, %rsp
@@ -22,15 +23,15 @@ block80348:
 	popq %r12
 	popq %rbp
 	jmp *%rax
-block80350:
+block157117:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block80348
-block80349:
+	jmp block157115
+block157116:
 	movq $0, %rdx
-	jmp block80348
-block80347:
+	jmp block157115
+block157114:
 	leaq tailrecur(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
@@ -38,17 +39,17 @@ block80347:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block80349
-	jmp block80350
-block80346:
+	 jl block157116
+	jmp block157117
+block157113:
 	movq $0, %rax
 	jmp tailrecurconclusion
 tailrecurstart:
 	movq %rdi, %rcx
 	movq %rsi, %r12
 	cmpq $0, %r12
-	 je block80346
-	jmp block80347
+	 je block157113
+	jmp block157114
 tailrecur:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -67,13 +68,13 @@ tailrecurconclusion:
 	retq 
 .globl main
 .align 16
-block80352:
+block157119:
 	movq $777, %rax
 	jmp mainconclusion
-block80351:
+block157118:
 	movq $42, %rax
 	jmp mainconclusion
-block80353:
+block157120:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -89,16 +90,16 @@ block80353:
 	callq *%rcx
 	movq %rax, %rcx
 	cmpq $0, %rcx
-	 je block80351
-	jmp block80352
-block80355:
+	 je block157118
+	jmp block157119
+block157122:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block80353
-block80354:
+	jmp block157120
+block157121:
 	movq $0, %rdx
-	jmp block80353
+	jmp block157120
 mainstart:
 	leaq tailrecur(%rip), %rcx
 	movq %rcx, %r12
@@ -107,8 +108,8 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block80354
-	jmp block80355
+	 jl block157121
+	jmp block157122
 main:
 	pushq %rbp
 	movq %rsp, %rbp

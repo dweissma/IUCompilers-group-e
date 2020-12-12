@@ -39,7 +39,7 @@ incconclusion:
 	retq 
 .globl main
 .align 16
-block80391:
+block157158:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -64,15 +64,15 @@ block80391:
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block80393:
+block157160:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block80391
-block80392:
+	jmp block157158
+block157159:
 	movq $0, %rcx
-	jmp block80391
-block80394:
+	jmp block157158
+block157161:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -90,16 +90,16 @@ block80394:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block80392
-	jmp block80393
-block80396:
+	 jl block157159
+	jmp block157160
+block157163:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block80394
-block80395:
+	jmp block157161
+block157162:
 	movq $0, %rcx
-	jmp block80394
+	jmp block157161
 mainstart:
 	leaq id(%rip), %rcx
 	movq %rcx, %r12
@@ -108,8 +108,8 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block80395
-	jmp block80396
+	 jl block157162
+	jmp block157163
 main:
 	pushq %rbp
 	movq %rsp, %rbp

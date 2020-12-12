@@ -3,6 +3,8 @@
 
 (require "utilities.rkt")
 (require "interp.rkt")
+(require "interp-R7.rkt")
+(require "interp-R6.rkt")
 (require "interp-R5.rkt")
 (require "interp-R4.rkt")
 (require "interp-R3.rkt")
@@ -15,32 +17,26 @@
 ;; Note that your compiler file (or whatever file provides your passes)
 ;; should be named "compiler.rkt"
 
-(define interp-R-prime
-  (let ([interp (new interp-R3-class)])
-    (send interp interp-scheme '())))
 
-(define interp-F2
-  (lambda (p)
-    ((send (new interp-R5-class)
-           interp-F '()) p)))
-
-(define r5-passes
-  `( ("type check R5", type-check, interp-R5)
-     ("shrink", shrink, interp-R5)
-     ("uniquify" ,uniquify ,interp-R5)
-     ("reveal functions" ,reveal-functions ,interp-F2)
-     ("convert closures" ,convert-to-closure ,interp-F2)
-     ("limit functions" ,limit-functions ,interp-F2)
-     ("expose allocation", expose-allocation, interp-F2)
-     ("remove complex opera*" ,remove-complex-opera* ,interp-F2)
-     ("explicate control" ,explicate-control ,interp-C3)
-     ("uncover locals" ,uncover-locals ,interp-C3)
-     ("instruction selection" ,select-instructions ,interp-pseudo-x86-3)
-     ("uncover live", uncover-live, interp-pseudo-x86-3)
-     ("build interference", build-interference,  interp-pseudo-x86-3)
-     ("allocate registers", allocate-registers,  interp-pseudo-x86-3)
-     ("patch instructions" ,patch-instructions , interp-pseudo-x86-3)
-     ("print x86" ,print-x86 #f)
+(define r7-passes
+  `( ("shrink", shrink, interp-R7-prog)
+     ("uniquify" ,uniquify ,interp-R7-prog)
+     ("reveal functions" ,reveal-functions ,interp-F3)
+     ("cast insert" ,cast-insert ,interp-F3)
+     ;("check bounds" ,check-bounds ,interp-F3)
+     ;("reveal casts" ,reveal-casts ,interp-F3)
+     ;("convert closures" ,convert-to-closure ,interp-F3)
+     ;("limit functions" ,limit-functions ,interp-F3)
+     ;("expose allocation", expose-allocation, interp-F3)
+     ;("remove complex opera*" ,remove-complex-opera* ,interp-F3)
+     ;("explicate control" ,explicate-control ,interp-C3)
+     ;("uncover locals" ,uncover-locals ,interp-C3)
+     ;("instruction selection" ,select-instructions ,interp-pseudo-x86-3)
+     ;("uncover live", uncover-live, interp-pseudo-x86-3)
+     ;("build interference", build-interference,  interp-pseudo-x86-3)
+     ;("allocate registers", allocate-registers,  interp-pseudo-x86-3)
+     ;("patch instructions" ,patch-instructions , interp-pseudo-x86-3)
+     ;("print x86" ,print-x86 #f)
      ))
 
 (define all-tests
@@ -70,5 +66,8 @@
 ;(interp-tests "r4" type-check-R5 r5-passes interp-R5 "r4" (tests-for "r4"))
 ;(compiler-tests "r4" type-check-R5 r5-passes "r4" (tests-for "r4"))
 
-(interp-tests "r5" type-check-R5 r5-passes interp-R5 "r5" (tests-for "r5"))
-(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))
+;(interp-tests "r5" type-check-R5 r5-passes interp-R5 "r5" (tests-for "r5"))
+;(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))
+
+(interp-tests "r7" #f r7-passes interp-R7 "r7" (tests-for "r7"))
+(compiler-tests "r7" #f r7-passes "r7" (tests-for "r7"))

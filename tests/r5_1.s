@@ -1,6 +1,6 @@
 .globl main
 .align 16
-block84820:
+block158795:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
@@ -19,24 +19,24 @@ block84820:
 	popq %rbx
 	popq %rbp
 	jmp *%rax
-block84822:
+block158797:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block84820
-block84821:
+	jmp block158795
+block158796:
 	movq $0, %rdx
-	jmp block84820
+	jmp block158795
 mainstart:
-	leaq lambda84811(%rip), %rcx
+	leaq lambda158786(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block84821
-	jmp block84822
+	 jl block158796
+	jmp block158797
 main:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -55,21 +55,21 @@ mainconclusion:
 	popq %rbx
 	popq %rbp
 	retq 
-.globl lambda84811
+.globl lambda158786
 .align 16
-lambda84811start:
+lambda158786start:
 	movq %rdi, %rcx
 	movq %rsi, %rcx
 	movq %rcx, %rax
-	jmp lambda84811conclusion
-lambda84811:
+	jmp lambda158786conclusion
+lambda158786:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
 	movq $0, 0(%r15)
 	addq $0, %r15
-	jmp lambda84811start
-lambda84811conclusion:
+	jmp lambda158786start
+lambda158786conclusion:
 	subq $0, %r15
 	addq $16, %rsp
 	popq %rbp

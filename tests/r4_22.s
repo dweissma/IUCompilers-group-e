@@ -31,44 +31,45 @@ hconclusion:
 	retq 
 .globl main
 .align 16
-block79938:
+block156703:
 	movq free_ptr(%rip), %rdx
 	addq $32, free_ptr(%rip)
 	movq %rdx, %r11
 	movq $7, 0(%r11)
 	movq %rdx, %r11
-	movq %rbx, 8(%r11)
+	movq %r14, 8(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %r13, 16(%r11)
+	movq -24(%rbp), %rax
+	movq %rax, 16(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %r12, 24(%r11)
+	movq -16(%rbp), %rax
+	movq %rax, 24(%r11)
 	movq $0, %rcx
 	movq %rdx, %r9
-	movq %r14, %rdi
+	movq %r12, %rdi
 	movq $1, %rsi
 	movq $2, %rdx
 	movq $3, %rcx
 	movq $4, %r8
-	movq -16(%rbp), %rax
+	movq %rbx, %rax
 	subq $0, %r15
-	addq $16, %rsp
+	addq $24, %rsp
 	popq %rbx
 	popq %r12
 	popq %r14
-	popq %r13
 	popq %rbp
 	jmp *%rax
-block79940:
+block156705:
 	movq %r15, %rdi
 	movq $24, %rsi
 	callq collect
-	jmp block79938
-block79939:
+	jmp block156703
+block156704:
 	movq $0, %rcx
-	jmp block79938
-block79941:
+	jmp block156703
+block156706:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -76,46 +77,43 @@ block79941:
 	movq %rdx, %r11
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r14
-	movq %r14, %r11
-	movq 8(%r11), %rax
-	movq %rax, -16(%rbp)
-	movq $5, %rbx
-	movq $6, %r13
-	movq $7, %r12
+	movq %rdx, %r12
+	movq %r12, %r11
+	movq 8(%r11), %rbx
+	movq $5, %r14
+	movq $6, -24(%rbp)
+	movq $7, -16(%rbp)
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $24, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block79939
-	jmp block79940
-block79943:
+	 jl block156704
+	jmp block156705
+block156708:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block79941
-block79942:
+	jmp block156706
+block156707:
 	movq $0, %rcx
-	jmp block79941
+	jmp block156706
 mainstart:
 	leaq h(%rip), %rcx
 	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
-	movq %rcx, %rdx
-	addq $8, %rdx
-	movq fromspace_end(%rip), %rcx
-	cmpq %rcx, %rdx
-	 jl block79942
-	jmp block79943
+	addq $8, %rcx
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rcx
+	 jl block156707
+	jmp block156708
 main:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
 	pushq %r12
 	pushq %r14
-	pushq %r13
-	subq $16, %rsp
+	subq $24, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
 	callq initialize
@@ -125,11 +123,10 @@ main:
 	jmp mainstart
 mainconclusion:
 	subq $0, %r15
-	addq $16, %rsp
+	addq $24, %rsp
 	popq %rbx
 	popq %r12
 	popq %r14
-	popq %r13
 	popq %rbp
 	retq 
 

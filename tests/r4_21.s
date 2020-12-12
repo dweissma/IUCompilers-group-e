@@ -1,25 +1,22 @@
 .globl tail__qzxsum
 .align 16
-block79897:
-	movq %rbx, %rax
-	jmp tail__qzxsumconclusion
-block79899:
-	movq free_ptr(%rip), %rcx
+block156664:
+	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
-	movq %rcx, %r11
+	movq %rdx, %r11
 	movq $131, 0(%r11)
-	movq %rcx, %r11
-	movq %r13, 8(%r11)
-	movq $0, %rdx
-	movq %rcx, %rdi
+	movq %rdx, %r11
+	movq %rbx, 8(%r11)
+	movq $0, %rcx
+	movq %rdx, %rdi
 	movq %rdi, %r11
 	movq 8(%r11), %rcx
 	movq $1, %rdx
 	negq %rdx
-	movq %r12, %rsi
+	movq %r13, %rsi
 	addq %rdx, %rsi
-	movq %r12, %rdx
-	addq %rbx, %rdx
+	movq %r13, %rdx
+	addq %r12, %rdx
 	movq %rcx, %rax
 	subq $0, %r15
 	addq $8, %rsp
@@ -28,30 +25,33 @@ block79899:
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block79900:
-	movq $0, %rdx
-	jmp block79899
-block79901:
+block156666:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block79899
-block79898:
-	leaq tail__qzxsum(%rip), %rcx
-	movq %rcx, %r13
-	movq free_ptr(%rip), %rcx
-	addq $8, %rcx
-	movq fromspace_end(%rip), %rsi
-	cmpq %rsi, %rcx
-	 jl block79900
-	jmp block79901
-tail__qzxsumstart:
-	movq %rdi, %rcx
-	movq %rsi, %r12
+	jmp block156664
+block156665:
+	movq $0, %rcx
+	jmp block156664
+block156663:
+	leaq tail__qzxsum(%rip), %rdx
 	movq %rdx, %rbx
-	cmpq $0, %r12
-	 je block79897
-	jmp block79898
+	movq free_ptr(%rip), %rdx
+	movq %rdx, %rsi
+	addq $8, %rsi
+	movq fromspace_end(%rip), %rdx
+	cmpq %rdx, %rsi
+	 jl block156665
+	jmp block156666
+block156662:
+	movq %r12, %rax
+	jmp tail__qzxsumconclusion
+tail__qzxsumstart:
+	movq %rsi, %r13
+	movq %rdx, %r12
+	cmpq $0, %r13
+	 je block156662
+	jmp block156663
 tail__qzxsum:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -72,13 +72,13 @@ tail__qzxsumconclusion:
 	retq 
 .globl main
 .align 16
-block79902:
+block156667:
 	movq free_ptr(%rip), %rcx
 	addq $16, free_ptr(%rip)
 	movq %rcx, %r11
 	movq $131, 0(%r11)
 	movq %rcx, %r11
-	movq %r12, 8(%r11)
+	movq %rbx, 8(%r11)
 	movq $0, %rdx
 	movq %rcx, %rdx
 	movq %rdx, %r11
@@ -91,28 +91,28 @@ block79902:
 	movq %rcx, %rax
 	addq $27, %rax
 	jmp mainconclusion
-block79904:
+block156669:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block79902
-block79903:
+	jmp block156667
+block156668:
 	movq $0, %rdx
-	jmp block79902
+	jmp block156667
 mainstart:
 	leaq tail__qzxsum(%rip), %rcx
-	movq %rcx, %r12
+	movq %rcx, %rbx
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block79903
-	jmp block79904
+	 jl block156668
+	jmp block156669
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	pushq %r12
+	pushq %rbx
 	subq $8, %rsp
 	movq $16384, %rdi
 	movq $1024, %rsi
@@ -124,7 +124,7 @@ main:
 mainconclusion:
 	subq $0, %r15
 	addq $8, %rsp
-	popq %r12
+	popq %rbx
 	popq %rbp
 	retq 
 

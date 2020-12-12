@@ -77,107 +77,116 @@
 
 (define (interp-R7-exp env)
   (lambda (ast)
-    (vomit "interp-R7-exp" ast env)
     (define recur (interp-R7-exp env))
     (match ast
-      [(? symbol?) (lookup ast env)]
-      [`(fun-ref ,f) (lookup f env)]
-      [`(fun-ref ,f ,n) (lookup f env)] ;; This is to deal with the detail of our translation that it keeps the arity of functions in the funref 
-      [(? integer?) `(tagged ,ast Integer)]
-      [#t `(tagged #t Boolean)]
-      [#f `(tagged #f Boolean)]
-      [`(read) `(tagged ,(read-fixnum) Integer)]
-      [`(lambda (,xs ...) ,body)
-       `(tagged (lambda ,xs ,body ,env)
+      [(Var x) (lookup x env)]
+      [(FunRef f) (lookup f env)]
+      ;; The following deals with the detail of our translation.
+      ;; It keeps the arity of functions in the funref.
+      [(FunRefArity f n) (lookup f env)]
+      [(Int n) `(tagged ,n Integer)]
+      [(Bool b) `(tagged ,b Boolean)]
+      [(Prim 'read '()) `(tagged ,(read-fixnum) Integer)]
+      [(Lambda xs rt body)
+       `(tagged (function ,xs ,body ,env)
                 (,@(for/list ([x xs]) 'Any) -> Any))]
-      [`(vector ,es ...)
+      [(Prim 'vector es)
        `(tagged ,(apply vector (for/list ([e es]) (recur e)))
                 (Vector ,@(for/list ([e es]) 'Any)))]
-      [`(vector-set! ,e1 ,n ,e2)
+      [(Prim 'vector-set! (list e1 n e2))
        (define vec (value-of-any (recur e1)))
        (define i (value-of-any (recur n)))
        (vector-set! vec i (recur e2))
-       `(tagged (void) Void)]
-      [`(vector-ref ,e1 ,n)
+       `(tagged ,(void) Void)]
+      [(Prim 'vector-ref (list e1 n))
        (define vec (value-of-any (recur e1)))
        (define i (value-of-any (recur n)))
        (vector-ref vec i)]
-      [`(let ([,x ,e]) ,body)
+      [(Let x e body)
        (let ([v (recur e)])
          ((interp-R7-exp (cons (cons x v) env)) body))]
-      [`(and ,e1 ,e2)
-       (recur `(if ,e1 ,e2 #f))]
-      [`(or ,e1 ,e2)
-       (define tmp (gensym 'tmp))
-       (recur `(let ([,tmp ,e1]) (if ,tmp ,tmp ,e2)))]
-      [`(eq? ,l ,r)
+      [(Prim 'and (list e1 e2))
+       (recur (If e1 e2 (Bool #f)))]
+      [(Prim 'or (list e1 e2))
+       (define v1 (recur e1))
+       (match (value-of-any v1)
+         [#f (recur e2)]
+         [else v1])]
+      [(Prim 'eq? (list l r))
        `(tagged ,(equal? (recur l) (recur r)) Boolean)]
-      [`(if ,q ,t ,f)
+      [(If q t f)
        (match (value-of-any (recur q))
          [#f (recur f)]
          [else (recur t)])]
-      [`(,op ,es ...)
-       #:when (set-member? primitives op)
+      [(Prim op es)
        (tag-value
         (apply (interp-op op) (for/list ([e es]) (value-of-any (recur e)))))]
-      ;; The following case has to come last. -Jeremy
-      [(or `(app ,f ,es ...) `(,f ,es ...))
+      [(Apply f es)
        (define new-args (map recur es))
        (let ([f-val (value-of-any (recur f))])
          (match f-val 
-           [`(lambda (,xs ...) ,body ,lam-env)
+           [`(function (,xs ...) ,body ,lam-env)
             (define new-env (append (map cons xs new-args) lam-env))
             ((interp-R7-exp new-env) body)]
            [else (error "interp-R7-exp, expected function, not" f-val)]))]
+      [(HasType e t)
+       (recur e)]
       )))
 
 (define (interp-R7-def ast)
-  (vomit "interp-R7-def" ast)
   (match ast
-    [(or `(define (,f ,xs ...) ,body) `(define (,f ,xs ...) ,_ ,body))
-     (mcons f `(lambda ,xs ,body ()))]
+    [(Def f xs rt info body)
+     (mcons f `(function ,xs ,body ()))]
     [else
      (error "interp-R7-def unmatched" ast)]
     ))
 
 ;; This version is for source code in R7.
 (define (interp-R7 ast)
-  (vomit "interp-R7" ast)
   (match ast
-    [`(program ,info ,ds ... ,body)
+    [(ProgramDefsExp info ds body)
      (let ([top-level (map (lambda (d) (interp-R7-def d)) ds)])
          ;; Use set-cdr! on define lambda's for mutual recursion
        (for/list ([b top-level])
          (set-mcdr! b (match (mcdr b)
-                        [`(lambda ,xs ,body ())
-                         `(tagged (lambda ,xs ,body ,top-level) 
-                                  (,@(map (lambda (x) 'Any) xs) -> Any))])))
+                        [`(function ,xs ,body ())
+                         `(tagged (function ,xs ,body ,top-level) 
+                                  (,@(for/list ([x xs]) 'Any) -> Any))])))
        (match ((interp-R7-exp top-level) body)
          [`(tagged ,n Integer)
           n]
          [v
-          (error 'interp-R7 "expected an integer result from the program, not " v)]))]
+          (error 'interp-R7 "expected an integer result from the program, not "
+                 v)]))]
+    [(Program info body)
+     (let ([top-level '()])
+       (match ((interp-R7-exp top-level) body)
+         [`(tagged ,n Integer)
+          n]
+         [v
+          (error 'interp-R7 "expected an integer result from the program, not "
+                 v)]))]
     [else
      (error "interp-R7 unmatched" ast)]
     ))
 
 ;; This version is for after uniquify.
 (define (interp-R7-prog ast)
-  (vomit "interp-R7-prog" ast)
   (match ast
-    [`(program ,info ,ds ...)
+    [(ProgramDefs info ds)
      (let ([top-level (map (lambda (d) (interp-R7-def d)) ds)])
        ;; Use set-cdr! on define lambda's for mutual recursion
        (for/list ([b top-level])
          (set-mcdr! b (match (mcdr b)
-                        [`(lambda ,xs ,body ())
-                         `(tagged (lambda ,xs ,body ,top-level) 
-                                  (,@(map (lambda (x) 'Any) xs) -> Any))])))
-       (match ((interp-R7-exp top-level) `(main))
+                        [`(function ,xs ,body ())
+                         `(tagged (function ,xs ,body ,top-level) 
+                                  (,@(for/list ([x xs]) 'Any) -> Any))])))
+       (match ((interp-R7-exp top-level) (Apply (Var 'main) '()))
          [`(tagged ,n Integer)
           n]
          [v
-          (error 'interp-R7 "expected an integer result from the program, not " v)]))]
+          (error 'interp-R7 "expected an integer result from the program, not "
+                 v)]))]
     [else
      (error "interp-R7-prog unmatched" ast)]
     ))

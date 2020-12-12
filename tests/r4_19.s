@@ -20,7 +20,7 @@ mconclusion:
 	retq 
 .globl main
 .align 16
-block79787:
+block156552:
 	movq free_ptr(%rip), %rdx
 	addq $48, free_ptr(%rip)
 	movq %rdx, %r11
@@ -33,23 +33,22 @@ block79787:
 	movq %rax, 16(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq %rbx, 24(%r11)
-	movq $0, %rcx
-	movq %rdx, %r11
 	movq -16(%rbp), %rax
-	movq %rax, 32(%r11)
+	movq %rax, 24(%r11)
 	movq $0, %rcx
 	movq %rdx, %r11
-	movq -40(%rbp), %rax
-	movq %rax, 40(%r11)
+	movq %rbx, 32(%r11)
+	movq $0, %rcx
+	movq %rdx, %r11
+	movq %r14, 40(%r11)
 	movq $0, %rcx
 	movq %rdx, %r9
-	movq %r14, %rdi
+	movq %r13, %rdi
 	movq $777, %rsi
 	movq $776, %rdx
 	movq $775, %rcx
 	movq $774, %r8
-	movq %r13, %rax
+	movq -40(%rbp), %rax
 	subq $0, %r15
 	addq $48, %rsp
 	popq %rbx
@@ -58,15 +57,15 @@ block79787:
 	popq %r13
 	popq %rbp
 	jmp *%rax
-block79789:
+block156554:
 	movq %r15, %rdi
 	movq $40, %rsi
 	callq collect
-	jmp block79787
-block79788:
+	jmp block156552
+block156553:
 	movq $0, %rcx
-	jmp block79787
-block79790:
+	jmp block156552
+block156555:
 	movq free_ptr(%rip), %rdx
 	addq $16, free_ptr(%rip)
 	movq %rdx, %r11
@@ -74,29 +73,30 @@ block79790:
 	movq %rdx, %r11
 	movq %rbx, 8(%r11)
 	movq $0, %rcx
-	movq %rdx, %r14
-	movq %r14, %r11
-	movq 8(%r11), %r13
+	movq %rdx, %r13
+	movq %r13, %r11
+	movq 8(%r11), %rax
+	movq %rax, -40(%rbp)
 	movq $773, %r12
 	movq $772, -24(%rbp)
-	movq $771, %rbx
-	movq $770, -16(%rbp)
-	movq $42, -40(%rbp)
+	movq $771, -16(%rbp)
+	movq $770, %rbx
+	movq $42, %r14
 	movq free_ptr(%rip), %rcx
 	movq %rcx, %rdx
 	addq $40, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block79788
-	jmp block79789
-block79792:
+	 jl block156553
+	jmp block156554
+block156557:
 	movq %r15, %rdi
 	movq $8, %rsi
 	callq collect
-	jmp block79790
-block79791:
+	jmp block156555
+block156556:
 	movq $0, %rcx
-	jmp block79790
+	jmp block156555
 mainstart:
 	leaq m(%rip), %rcx
 	movq %rcx, %rbx
@@ -105,8 +105,8 @@ mainstart:
 	addq $8, %rdx
 	movq fromspace_end(%rip), %rcx
 	cmpq %rcx, %rdx
-	 jl block79791
-	jmp block79792
+	 jl block156556
+	jmp block156557
 main:
 	pushq %rbp
 	movq %rsp, %rbp

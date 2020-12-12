@@ -5,13 +5,13 @@ mainstart:
 	addq $1, %rdx
 	movq $1, %rcx
 	addq $1, %rcx
-	addq %rcx, %rdx
+	movq %rdx, %rsi
+	addq %rcx, %rsi
 	movq $1, %rcx
 	addq $1, %rcx
-	movq $1, %rsi
-	addq $1, %rsi
-	addq %rsi, %rcx
-	movq %rdx, %rsi
+	movq $1, %rdx
+	addq $1, %rdx
+	addq %rdx, %rcx
 	addq %rcx, %rsi
 	movq $1, %rcx
 	addq $1, %rcx
@@ -24,35 +24,33 @@ mainstart:
 	addq $1, %rdi
 	addq %rdi, %rdx
 	addq %rdx, %rcx
-	movq %rsi, %rdx
-	addq %rcx, %rdx
-	movq $1, %rsi
-	addq $1, %rsi
-	movq $1, %rcx
-	addq $1, %rcx
-	movq %rsi, %rdi
-	addq %rcx, %rdi
-	movq $1, %rcx
-	addq $1, %rcx
-	movq $1, %rsi
-	addq $1, %rsi
-	addq %rsi, %rcx
-	addq %rcx, %rdi
-	movq $1, %rsi
-	addq $1, %rsi
-	movq $1, %rcx
-	addq $1, %rcx
-	movq %rsi, %r8
-	addq %rcx, %r8
-	movq $1, %rcx
-	addq $1, %rcx
-	movq $1, %rsi
-	addq $1, %rsi
-	addq %rsi, %rcx
-	movq %r8, %rsi
 	addq %rcx, %rsi
-	movq %rdi, %rcx
-	addq %rsi, %rcx
+	movq $1, %rcx
+	addq $1, %rcx
+	movq $1, %rdx
+	addq $1, %rdx
+	addq %rdx, %rcx
+	movq $1, %rdx
+	addq $1, %rdx
+	movq $1, %rdi
+	addq $1, %rdi
+	addq %rdi, %rdx
+	addq %rdx, %rcx
+	movq $1, %rdi
+	addq $1, %rdi
+	movq $1, %rdx
+	addq $1, %rdx
+	movq %rdi, %r8
+	addq %rdx, %r8
+	movq $1, %rdi
+	addq $1, %rdi
+	movq $1, %rdx
+	addq $1, %rdx
+	addq %rdx, %rdi
+	movq %r8, %rdx
+	addq %rdi, %rdx
+	addq %rdx, %rcx
+	movq %rsi, %rdx
 	addq %rcx, %rdx
 	movq $10, %rax
 	addq %rdx, %rax

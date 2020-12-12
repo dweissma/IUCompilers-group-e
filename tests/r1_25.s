@@ -3,12 +3,12 @@
 mainstart:
 	movq $10, %rsi
 	addq $11, %rsi
-	movq $4, %rcx
-	negq %rcx
-	movq $25, %rdx
-	addq %rcx, %rdx
+	movq $4, %rdx
+	negq %rdx
+	movq $25, %rcx
+	addq %rdx, %rcx
 	movq %rsi, %rax
-	addq %rdx, %rax
+	addq %rcx, %rax
 	jmp mainconclusion
 main:
 	pushq %rbp

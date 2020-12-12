@@ -1,24 +1,24 @@
 .globl main
 .align 16
-block71866:
+block148487:
 	movq %rcx, %rax
 	addq $10, %rax
 	jmp mainconclusion
-block71868:
+block148489:
 	movq %r12, %rcx
-	jmp block71866
-block71867:
+	jmp block148487
+block148488:
 	movq %rbx, %rcx
 	negq %rcx
-	jmp block71866
+	jmp block148487
 mainstart:
 	movq $1, %rbx
 	movq $2, %r12
 	callq read_int
 	movq %rax, %rcx
 	cmpq $0, %rcx
-	 je block71867
-	jmp block71868
+	 je block148488
+	jmp block148489
 main:
 	pushq %rbp
 	movq %rsp, %rbp
