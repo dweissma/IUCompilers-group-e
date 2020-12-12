@@ -31,12 +31,12 @@
      ("remove complex opera*" ,remove-complex-opera* ,interp-F3)
      ("explicate control" ,explicate-control ,interp-C5)
      ("uncover locals" ,uncover-locals ,interp-C5)
-     ("instruction selection" ,select-instructions ,interp-pseudo-x86-3)
-     ;("uncover live", uncover-live, interp-pseudo-x86-3)
-     ;("build interference", build-interference,  interp-pseudo-x86-3)
-     ;("allocate registers", allocate-registers,  interp-pseudo-x86-3)
-     ;("patch instructions" ,patch-instructions , interp-pseudo-x86-3)
-     ;("print x86" ,print-x86 #f)
+     ("instruction selection" ,select-instructions ,interp-pseudo-x86-4)
+     ("uncover live", uncover-live, interp-pseudo-x86-4)
+     ("build interference", build-interference,  interp-pseudo-x86-4)
+     ("allocate registers", allocate-registers,  interp-pseudo-x86-4)
+     ("patch instructions" ,patch-instructions , interp-pseudo-x86-4)
+     ("print x86" ,print-x86 #f)
      ))
 
 (define all-tests

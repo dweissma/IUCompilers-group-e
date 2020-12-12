@@ -1,21 +1,21 @@
 .globl main
 .align 16
-block810805:
+block810809:
 	movq $-1, %rdi
 	callq exit
-block810804:
-	movq %rcx, %rax
+block810808:
+	movq %rdx, %rax
 	sarq $3, %rax
 	jmp mainconclusion
 mainstart:
-	movq $42, %rcx
-	salq $3, %rcx
-	orq $1, %rcx
-	movq %rcx, %rdx
-	andq $7, %rdx
-	cmpq $1, %rdx
-	 je block810804
-	jmp block810805
+	movq $42, %rdx
+	salq $3, %rdx
+	orq $1, %rdx
+	movq %rdx, %rcx
+	andq $7, %rcx
+	cmpq $1, %rcx
+	 je block810808
+	jmp block810809
 main:
 	pushq %rbp
 	movq %rsp, %rbp

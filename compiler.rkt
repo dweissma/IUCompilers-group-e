@@ -981,7 +981,7 @@
   (match exp
     [(Seq stmt seq-tail) (Seq stmt (do-assignment seq-tail var tail))]
     [(HasType (Call f es) t) (Seq (Assign var (HasType (Call f es) t)) tail)]
-    [(HasType (Exit) t) (Seq (Assign var (HasType (Exit) t)) tail)]
+    [(Exit) (Exit)]
     [(Return (HasType x t)) (Seq (Assign var (HasType x t)) tail)]
     ))
 
@@ -1074,7 +1074,7 @@
     [(HasType (FunRef f) t) (values (Return (HasType (FunRef f) t)) '() cgraph)]
     [(HasType (Apply f es) t) (values (TailCall f es) '() cgraph)]
     [(HasType (ValueOf exp type) t) (values (Return (HasType (ValueOf exp type) t)) '() cgraph)]
-    [(HasType (Exit) t) (values (HasType (Exit) t) '() cgraph)]
+    [(HasType (Exit) t) (values  (Exit) '() cgraph)]
     ))
 
 (define (explicate-def def)
@@ -1114,7 +1114,7 @@
                    (calculate-tag2 (cdr types) t-len))))
 
 (define (calculate-tag types t-len arity)
-  (bitwise-ior (arithmetic-shift arity 56) (calculate-tag2 types t-len)))
+  (bitwise-ior (arithmetic-shift arity 57) (calculate-tag2 types t-len)))
 
 (define arg-regs  (vector->list arg-registers))
 
@@ -1156,7 +1156,7 @@
        [(Prim 'vector-set! (list (HasType vect t1) (HasType i t2) (HasType arg t3))) #:when(type-is-vectorof? t1) (list (Instr 'movq (list (slct-atom i) (Reg 'r11))) (Instr 'addq (list (Imm 1) (Reg 'r11))) (Instr 'imulq (list (Imm 8) (Reg 'r11))) (Instr 'addq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 0))) (Instr 'movq (list (Imm 0) (Var x))))]
        [(Prim 'vector-set! (list (HasType vect t1) (HasType (Int n) t2) (HasType arg t3))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 (* 8 (add1 n))))) (Instr 'movq (list (Imm 0) (Var x))))] 
        [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int)))#:when(not (or (eq? tag 2) (eq? tag 3))) (list (Instr 'movq (list (slct-atom e) (Var x))) (Instr 'salq (list (Imm 3) (Var x))) (Instr 'orq (list (Imm tag) (Var x))))]
-       [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int))) (list (Instr 'movq (list (slct-atom e) (Var x))) (Instr 'andq (list (Imm 7) (Var x))))]
+       [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int))) (list (Instr 'movq (list (slct-atom e) (Var x))) (Instr 'orq (list (Imm tag) (Var x))))]
        [(Prim 'tag-of-any (list (HasType e t))) (list (Instr 'movq (list (slct-atom e) (Var x))) (Instr 'andq (list (Imm 7) (Var x))))]
        [(ValueOf (HasType exp t) type) #:when (or (type-is-vector? type) (type-is-function? type)) (list (Instr 'movq (list (Imm -8) (Var x))) (Instr 'andq (list (slct-atom exp) (Var x))))]
        [(ValueOf (HasType exp t) type) (list (Instr 'movq (list (slct-atom exp) (Var x))) (Instr 'sarq (list (Imm 3) (Var x))))]
@@ -1181,6 +1181,7 @@
      (list (Instr 'cmpq (list (slct-atom exp2) (slct-atom exp1))) (JmpIf 'l l1) (Jmp l2))]
     [(TailCall f es) (append (map (lambda (atm reg) (Instr 'movq (list (slct-atom atm) (Reg reg)))) es (slice arg-regs 0 (length es)))
                              (list (TailJmp (slct-atom f) (length es))))]
+    [(Exit) (list (Instr 'movq (list (Imm -1) (Reg 'rdi))) (Callq 'exit 1))]
     [(Return (HasType r t))
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
@@ -1200,14 +1201,12 @@
        [(Prim 'procedure-arity (list (HasType clos t))) (list (Instr 'movq (list (slct-atom exp) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 0) (Reg 'r11))) (Instr 'sarq (list (Imm 57) (Reg 'r11))) (Instr 'movq (list (Reg 'r11) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(Prim 'vector-length (list (HasType exp t))) (list (Instr 'movq (list (slct-atom exp) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 0) (Reg 'r11))) (Instr 'andq (list (Imm 126) (Reg 'r11))) (Instr 'sarq (list (Imm 1) (Reg 'r11))) (Instr 'movq (list (Reg 'r11) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int)))#:when(not (or (eq? tag 2) (eq? tag 3))) (list (Instr 'movq (list (slct-atom e) (Reg 'rax))) (Instr 'salq (list (Imm 3) (Reg 'rax))) (Instr 'orq (list (Imm tag) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
-       [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int))) (list (Instr 'movq (list (slct-atom e) (Reg 'rax))) (Instr 'andq (list (Imm 7) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
+       [(Prim 'make-any (list (HasType e t) (HasType (Int tag) int))) (list (Instr 'movq (list (slct-atom e) (Reg 'rax))) (Instr 'orq (list (Imm tag) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(Prim 'tag-of-any (list (HasType e t))) (list (Instr 'movq (list (slct-atom e) (Reg 'rax))) (Instr 'andq (list (Imm 7) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(ValueOf (HasType exp t) type) #:when (or (type-is-vector? type) (type-is-function? type)) (list (Instr 'movq (Imm -8) (Reg 'rax)) (Instr 'andq (list (slct-atom exp) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(ValueOf (HasType exp t) type) (list (Instr 'movq (list (slct-atom exp) (Reg 'rax))) (Instr 'sarq (list (Imm 3) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
        [(Exit) (list (Instr 'movq (list (Imm -1) (Reg 'rdi))) (Callq 'exit 1))]
        [atm (list (Instr 'movq (list (slct-atom atm) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))])]))
-
-
 
 (define (select-def def)
   (match def
@@ -1299,7 +1298,7 @@
 
 (define caller-registers '(rdx rcx rsi rdi r8 r9 r10 r11)) ;Excludes rax since it won't be in the interference graph
 (define callee-registers '(r12 r13 r14 rbx rbp))
-(define instrs-with-writes '(addq movq xorq movzbq leaq))
+(define instrs-with-writes '(addq movq xorq movzbq leaq salq sarq andq orq))
 
 (define last-reg (sub1 (length reg-colors)))
 
@@ -1595,7 +1594,5 @@
                                            )))))]))
 
 ;(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-casts check-bounds cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x))))
-(define test-compile (compose check-bounds cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x)))) 
-(define test-program '((define (id x) x)
-
-(id 42)))
+(define test-compile (compose allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-casts check-bounds cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x)))) 
+(define test-program '(42))
