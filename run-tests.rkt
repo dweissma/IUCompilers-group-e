@@ -3,10 +3,11 @@
 
 (require "utilities.rkt")
 (require "interp.rkt")
+(require "interp-R6.rkt")
 (require "interp-R5.rkt")
 (require "interp-R4.rkt")
 (require "interp-R3.rkt")
-(require "type-check-R5.rkt")
+(require "type-check-R6.rkt")
 (require "compiler.rkt")
 ;(debug-level 1)
 ;; (AST-output-syntax 'concrete-syntax)
@@ -25,9 +26,9 @@
            interp-F '()) p)))
 
 (define r5-passes
-  `( ("type check R5", type-check, interp-R5)
-     ("shrink", shrink, interp-R5)
-     ("uniquify" ,uniquify ,interp-R5)
+  `( ("type check R6", type-check, interp-R6)
+     ("shrink", shrink, interp-R6)
+     ("uniquify" ,uniquify ,interp-R6)
      ("reveal functions" ,reveal-functions ,interp-F2)
      ("convert closures" ,convert-to-closure ,interp-F2)
      ("limit functions" ,limit-functions ,interp-F2)
@@ -70,5 +71,8 @@
 ;(interp-tests "r4" type-check-R5 r5-passes interp-R5 "r4" (tests-for "r4"))
 ;(compiler-tests "r4" type-check-R5 r5-passes "r4" (tests-for "r4"))
 
-(interp-tests "r5" type-check-R5 r5-passes interp-R5 "r5" (tests-for "r5"))
-(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))
+;(interp-tests "r5" type-check-R5 r5-passes interp-R5 "r5" (tests-for "r5"))
+;(compiler-tests "r5" type-check-R5 r5-passes "r5" (tests-for "r5"))
+
+(interp-tests "r7" type-check-R6 r5-passes interp-R5 "r7" (tests-for "r7"))
+(compiler-tests "r7" type-check-R6 r5-passes interp-R5 "r7" (tests-for "r7"))

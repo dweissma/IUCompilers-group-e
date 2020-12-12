@@ -96,25 +96,7 @@
 
 ;Replace illegal characters with sequences of characters no sane person would have in their function name
 (define (make-legal-label lbl)
-  (label-name (string->symbol (string-replace (symbol->string lbl) "-" "__qzx"))))
-
-(define (tagof ty)
-  (match ty
-    [`Integer 1]
-    [`Boolean 4]
-    [`Void 5]
-    [`(Vector ,ts ...) 2]
-    [`(Vectorof ,t) 2]
-    [`(,ts ... -> ,rt) 3]
-    [else (error "unrecognized type" ty)]))
-
-(define (project-type e ty)
-  (cond
-    [(vector? ty) (Prim 'eq? (list (Prim 'vector-length (list (Var e)))) (vector-length ty))]
-    [(procedure? ty) (Prim 'eq? (list (Prim 'procedure-arity (list (Var e)))) (procedure-arity ty))]
-    [(integer? ty) (Prim 'eq? (list (Prim 'tag-of-any (list (Var e)))) (tagof ty))]
-    [(boolean? ty) (Prim 'eq? (list (Prim 'tag-of-any (list (Var e)))) (tagof ty))]
-    [else #f]))
+  (label-name (string->symbol (string-replace (symbol->string lbl) "-" "__qzx")))) 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Passes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -364,11 +346,6 @@
     [(If cond exp else) (If (shrink-exp cond) (shrink-exp exp) (shrink-exp else))]
     [(Apply f es) (Apply f (map shrink-exp es))]
     [(Lambda (and bnd `([,xs : ,Ts] ...)) rT body) (Lambda bnd rT (shrink-exp body))]
-    [(Project e ty) (let ([tmp e])
-                      (if (project-type tmp ty)
-                      (ValueOf tmp ty)
-                      (Exit)))]
-    [(Inject e ty) (Prim 'make-any (list e (Int (tagof ty))))]
     [x x]))
     
 (define (shrink-def def)
@@ -898,14 +875,7 @@
        [(Prim '< (list (HasType y t1) (HasType z t2))) (list (Instr 'cmpq (list (slct-atom z) (slct-atom y))) (Instr 'set (list 'l (ByteReg 'al))) (Instr 'movzbq (list (ByteReg 'al) (Var x))))]
        [(Prim 'vector-ref (list (HasType vect t1) (HasType (Int n) t2))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (Deref 'r11 (* 8 (add1 n))) (Var x))))]
        [(Prim 'vector-set! (list (HasType vect t1) (HasType (Int n) t2) (HasType arg t3))) (list (Instr 'movq (list (slct-atom vect) (Reg 'r11))) (Instr 'movq (list (slct-atom arg) (Deref 'r11 (* 8 (add1 n))))) (Instr 'movq (list (Imm 0) (Var x))))]
-       [(Prim 'procedure-arity (list (HasType clos t))) (list (Instr 'movq (list (Imm (get-arity-from-type t)) (Var x))))]
-       [(Prim 'make-any (list e (Int tag))) (if (or (eq? tag 2) (eq? tag 3))
-                                                (list (Instr 'movq (list e x)) (Instr 'orq (list tag x)))
-                                                (list (Instr 'movq (list e x)) (Instr 'salq (list (Imm 3) x)) (Instr 'orq (list tag x))))]
-       [(Prim 'tag-of-any (list e)) (list (Instr 'movq (list e x)) (Instr 'andq (list (Imm 7) x)))]
-       [(ValueOf e ty) (if (or (vector? ty) (procedure? ty))
-                           (list (Instr 'movq (list (Imm -8) x)) (Instr 'andq (list e x)))
-                           (list (Instr 'movq (list e x)) (Instr 'sarq (list (Imm 3) x))))]
+       [(Prim 'procedure-arity (list (HasType clos t))) (list (Instr 'movq (list (Imm (get-arity-from-type t)) (Var x))))] 
        [(Allocate len types) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)) 0)])
                                (list (Instr 'movq (list (Global 'free_ptr) (Var x))) (Instr 'addq (list (Imm (* 8 (add1 len))) (Global 'free_ptr))) (Instr 'movq (list (Var x) (Reg 'r11))) (Instr 'movq (list (Imm tag) (Deref 'r11 0)))))]
        [(AllocateClosure len types arity) (let ([tag (calculate-tag (reverse (cdr types)) (length (cdr types)) arity)])
@@ -924,7 +894,6 @@
      (list (Instr 'cmpq (list (slct-atom exp2) (slct-atom exp1))) (JmpIf 'l l1) (Jmp l2))]
     [(TailCall f es) (append (map (lambda (atm reg) (Instr 'movq (list (slct-atom atm) (Reg reg)))) es (slice arg-regs 0 (length es)))
                              (list (TailJmp (slct-atom f))))]
-    [(Exit) (list (Instr 'movq (list (Imm -1) (Reg 'rdi))) (Callq 'exit))]
     [(Return (HasType r t))
      (match r
        [(Int n) (list (Instr 'movq (list (Imm n) (Reg 'rax))) (Jmp (symb-append name 'conclusion)))]
