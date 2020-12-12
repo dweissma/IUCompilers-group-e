@@ -8,7 +8,7 @@
 (require "interp-R5.rkt")
 (require "interp-R4.rkt")
 (require "interp-R3.rkt")
-(require "type-check-R5.rkt")
+(require "type-check-R6.rkt")
 (require "compiler.rkt")
 ;(debug-level 1)
 ;; (AST-output-syntax 'concrete-syntax)

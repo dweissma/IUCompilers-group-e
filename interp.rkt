@@ -61,7 +61,7 @@
   (lambda (p)
     (send (new interp-R8-class) interp-C p)))
 
-;; Interpreters for x86 with names that correspond to the book.
+;; Interpreters for various subsets of x86
 
 (define interp-pseudo-x86-0
   (lambda (p)
