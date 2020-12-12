@@ -202,6 +202,7 @@
 (define (reveal-exp exp glbls)
   (match exp
     [(HasType (Var x) t) #:when (match-alist x glbls) (HasType (FunRefArity x (match-alist x glbls)) t)]
+    [(Var x) #:when (match-alist x glbls) (FunRefArity x (match-alist x glbls))]
     [(Var x)
      (Var x)]
     [(HasType exp type)
@@ -242,10 +243,11 @@
     [(Int n) (Inject (Int n) 'Integer)]
     [(Bool bool) (Inject (Bool bool) 'Boolean)]
     [(Void) (Inject (Void) 'Void)]
+    [(FunRefArity f arity) (Inject (FunRefArity f arity) (append (duplicate 'Any arity) '(-> Any)))]
     [(Let x e body)
      (Let x (insert-exp e) (insert-exp body))]
     [(Prim 'vector es)
-     (Inject (Prim 'vector (map insert-exp es)) '(Vectorof Any))]
+     (Inject (Prim 'vector (map insert-exp es)) `(Vector ,@(duplicate 'Any (length es))))]
     [(Prim op es)
      (define inner-op (Prim op (map (lambda (x t) (if (eq? t 'Any) (insert-exp x) (Project (insert-exp x) t))) es (match-alist op op-input-types))))
      (if (not (eq? 'Any (match-alist op op-return-types)))
@@ -344,9 +346,6 @@
      (values e^ e* rt)]
     [else (error "type error: expected a function, not" ty)]))
 
- 
-
-
 (define (flat-ty? ty)
   (match ty
     [(or `Integer `Boolean '_ `Void)
@@ -408,6 +407,11 @@
                                                                (HasType (Prim 'vector-ref (list (HasType (Var v) '(Vectorof Any)) (HasType (Var index) 'Integer))) t)
                                                                (HasType (Exit) t)) t)) t)) t)]
          [else (error "expected a vector in vector-ref, not" t)])]
+      [(AllocateClosure size t arity)
+           (values (AllocateClosure size t arity) t)]
+      [(FunRefArity f n)
+        (let ([t (dict-ref env f)])
+          (values (FunRefArity f n) t))]
       [(Prim 'vector-set! (list e-vec e-i e-arg))
        (define-values (e-vec^ t-vec) (recur e-vec))
        (define-values (i it) (recur e-i))
@@ -596,16 +600,19 @@
       [(HasType e type) (values (HasType e type) t)]
       [else (values (HasType exp t) t)])))
 
-(define (check-bounds-def def)
+(define (check-bounds-def def old-env)
   (match def
-    [(Def name ps rt info body)
-     (define-values (exp type) ((check-bounds-exp '()) body))
-     (Def name ps rt info exp)]))
+    [(Def name (and p:t* (list `[,xs : ,ps] ...)) rt info body)
+     (define new-env (append (map cons xs ps) old-env))
+     (define-values (exp type) ((check-bounds-exp new-env) body))
+     (Def name p:t* rt info exp)]))
 
 (define (check-bounds p)
   (match p
     [(ProgramDefs info ds)
-     (ProgramDefs info (map check-bounds-def ds))]
+     (define new-env (for/list ([d ds]) 
+                       (cons (Def-name d) (fun-def-type d))))
+     (ProgramDefs info (map (lambda (d) (check-bounds-def d new-env)) ds))]
     ))
 
 (define (reveal-casts-exp e)
@@ -616,6 +623,7 @@
      (HasType (reveal-casts-exp exp) type)] 
     [(Int n) (Int n)]
     [(Bool bool) (Bool bool)]
+    [(FunRefArity f arity) (FunRefArity f arity)]
     [(Void) (Void)]
     [(Let x e body)
      (Let x (reveal-casts-exp e) (reveal-casts-exp body))]
@@ -635,7 +643,7 @@
      (Let tmp (reveal-casts-exp e)
           (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'tag-of-any (list (HasType (Var tmp) 'Any))) 'Integer)
                                                 (HasType (Int (any-tag ty)) 'Integer))) 'Boolean)
-                       (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'vector-length (list (HasType (Var tmp) 'Any))) 'Integer)
+                       (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'vector-length (list (HasType (ValueOf (HasType (Var tmp) 'Any) '(Vectorof Any)) '(Vectorof Any)))) 'Integer)
                                                 (HasType (Int (sub1 (length ty)) 'Integer)))) 'Boolean)
                                     (HasType (ValueOf (HasType (Var tmp) 'Any) ty) ty)
                                     (HasType (Exit) ty)) ty)
@@ -645,7 +653,7 @@
      (Let tmp (reveal-casts-exp e)
           (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'tag-of-any (list (HasType (Var tmp) 'Any))) 'Integer)
                                                 (HasType (Int (any-tag ty)) 'Integer))) 'Boolean)
-                       (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'procedure-arity (list (HasType (Var tmp) 'Any))) 'Integer)
+                       (HasType (If (HasType (Prim 'eq? (list (HasType (Prim 'procedure-arity (list (HasType (ValueOf (HasType (Var tmp) 'Any) '(Any -> Any)) '(Any -> Any)))) 'Integer)
                                                 (HasType (Int (type-arity ty)) 'Integer))) 'Boolean)
                                     (HasType (ValueOf (HasType (Var tmp) 'Any) ty) ty)
                                     (HasType (Exit) ty)) ty)
@@ -1587,7 +1595,7 @@
                                            )))))]))
 
 ;(define test-compile (compose print-x86 patch-instructions allocate-registers build-interference uncover-live select-instructions uncover-locals explicate-control remove-complex-opera* expose-allocation limit-functions convert-to-closure reveal-casts check-bounds cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x))))
-(define test-compile (compose cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x)))) 
+(define test-compile (compose check-bounds cast-insert reveal-functions uniquify shrink parse-program (lambda (x) `(program () ,@x)))) 
 (define test-program '((define (id x) x)
 
 (id 42)))
